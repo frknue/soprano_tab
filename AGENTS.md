@@ -4,7 +4,8 @@ Window switcher for macOS in the Soprano family: a copy of AltTab (every window,
 search, preview, window actions, up to 9 shortcuts with filters, trackpad swipe, exceptions,
 command line) in Soprano's "Mission Control" chrome. Swift 6 + programmatic AppKit (no
 storyboards/xibs/SwiftUI), SPM, macOS 14+, menu-bar app (no Dock icon). Shipped as a
-hand-packaged `.app` via `scripts/install.sh`. Local-only: no GitHub remote yet.
+hand-packaged `.app` via `scripts/install.sh`. GitHub:
+[`frknue/soprano_tab`](https://github.com/frknue/soprano_tab) (public).
 
 ## Commands
 
