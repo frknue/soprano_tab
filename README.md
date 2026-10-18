@@ -15,13 +15,15 @@ has no Dock icon.
 ```
 
 The installer never restarts a running Soprano Tab; the update applies on the next
-launch. On first launch Soprano Tab opens its permissions window and asks macOS for:
+launch. The first launch asks macOS once for both permissions and opens the permissions
+window while one is missing:
 
 - **Accessibility** (required): reading, switching and focusing windows, and the
-  keyboard shortcuts.
+  keyboard shortcuts. The shortcuts start working as soon as you grant it; no relaunch.
 - **Screen Recording** (optional): window thumbnails and the preview. Without it the
   switcher shows app icons.
 
+Later launches open the permissions window again only while Accessibility is missing.
 The icon in the menu bar (two offset squares) means it is running. Launch at login is on
 by default.
 
@@ -32,21 +34,26 @@ by default.
 3. Release `⌥` to switch to the selected window. `⎋` cancels.
 4. A quick `⌥⇥` (released within 100 ms) jumps to the previous window without showing the
    panel.
-5. `` ⌥` `` (the key above Tab) does the same for the windows of the active app only.
+5. `⌥` + the key above Tab does the same for the windows of the active app only.
 
 ## The switcher
 
+- **Header**: what the list shows and how many, e.g. `all windows · 12`, the active app's
+  name (`Safari · 3`), `other apps`, `under the cursor`, or `search · 2` while searching.
+  On the right, hints for the bound keys: `⇥ next  ⇧ back  ↩ open  W close  M min  Q quit
+  S search`.
 - **Styles**: thumbnails of each window (default), large app icons, or a list of titles.
   Size small, medium, large, or auto (the largest size where every window fits).
 - **Every window**: windows on other Spaces and screens, minimized and hidden windows,
-  fullscreen windows, and apps with no open window (listed at the end; selecting one opens
-  it).
+  fullscreen windows, and apps with no open window (listed at the end; selecting one
+  brings the app forward so it can open a window).
 - **Badges** on each tile: `min`, `hidden`, `full`, and optionally the Space number
   (`all` for windows on every Space).
 - **Window controls**: hovering a tile shows close (red), minimize (yellow) and fullscreen
   (green) lamps.
 - **Search**: press `S` while the switcher is open and type; matches on the window title
-  or app name, fuzzy, accent-insensitive, several words all need to match.
+  or app name, fuzzy, accent-insensitive, several words all need to match. Matched
+  letters are highlighted. `no matches` when nothing fits.
 - **Preview**: optionally shows the selected window full size at its position behind the
   switcher.
 - **Screens and Spaces**: the switcher opens on the screen of the focused window (or the
@@ -61,18 +68,22 @@ by default.
 | `⇧` alone | Previous window |
 | `←` `→` `↑` `↓` | Move through the grid |
 | `↩` | Switch to the selected window |
-| Release the held modifier | Switch to the selected window |
+| Release the held modifier | Switch to the selected window (see `onRelease`) |
 | `⎋` | Cancel |
 | `W` | Close window |
 | `M` | Minimize / restore window |
 | `F` | Fullscreen / exit fullscreen |
-| `Q` | Quit app |
+| `Q` | Quit app (Finder only when its Quit menu item is enabled) |
 | `H` | Hide / show app |
 | `S` | Search |
 | `h` `j` `k` `l` | Move left / down / up / right, when `controls.vimKeys` is on (they then win over `H`) |
 
+`W`, `M` and `F` do nothing on an app without windows. Closing the last window or quitting
+the last app in the list closes the switcher.
+
 While searching, `↩`, `⎋`, the arrows and the trigger key still work; every other key types
-into the search field. Keys that do nothing are swallowed, never passed to the app behind.
+into the search field. Releasing `⌥` while searching keeps the switcher open, so you can
+let go to type. Keys that do nothing are swallowed, never passed to the app behind.
 
 Mouse: hovering highlights a tile (and selects it with `mouse.hoverSelects`), a click
 switches to it, and the lamps on the hovered tile close, minimize or fullscreen its window.
@@ -85,10 +96,17 @@ and appearance. The defaults:
 | Shortcut | Lists |
 |---|---|
 | `⌥⇥` | Every window of every app |
-| `` ⌥` `` | Windows of the active app |
+| `⌥` + the key above Tab | Windows of the active app |
+
+The key above Tab (`keyAboveTab`) is the same physical key on every layout: `` ` `` on US
+keyboards, `^` on German ones.
 
 A third shortcut without filters lists the windows of every other app; the 4th to 9th list
 everything until you set filters. Shortcuts 3–9 need a `key`.
+
+What releasing the modifier does is per shortcut (`onRelease`): `focus` (default) switches
+to the selected window; `hold` keeps the switcher open until `↩`, `⎋` or a click; `search`
+keeps it open and starts search.
 
 **Trackpad gesture**: `gesture.type` turns on a three- or four-finger horizontal or
 vertical swipe. Swiping opens the switcher, each further swipe steps (with haptic
@@ -96,11 +114,21 @@ feedback), lifting a finger switches.
 
 ## Settings
 
-Settings live in `~/.config/soprano-tab/settings.json` (`SOPRANO_TAB_CONFIG` overrides the
-path). The file is created with comments on first launch, accepts comments and trailing
-commas, and reloads as soon as you save it. A bad value is ignored with a warning and keeps
-its default; it never stops the app. The menu shows "settings.json: N warnings" while there
-are any. Open the file from the menu (`⌘,`). Every key is optional.
+Settings live in `~/.config/soprano-tab/settings.json` (`$XDG_CONFIG_HOME/soprano-tab/`
+when `XDG_CONFIG_HOME` is set; `SOPRANO_TAB_CONFIG` overrides the whole path). The file is
+created with comments on first launch, accepts comments and trailing commas, may be a
+symlink (a dotfiles link survives), and reloads as soon as you save it. Open it from the
+menu (`⌘,`). Every key is optional.
+
+A bad value is ignored and keeps its default; it never stops the app. Each problem is
+logged, and the menu shows "settings.json: N warnings" with every message in its tooltip,
+for example:
+
+```text
+appearance.style: "big" is not one of "thumbnails", "appIcons", "titles"; kept "thumbnails".
+```
+
+A file that is not valid JSON keeps the last good settings running.
 
 ```jsonc
 {
@@ -113,7 +141,7 @@ are any. Open the file from the menu (`⌘,`). Every key is optional.
     { "hold": "option", "key": "keyAboveTab", "apps": "active" },
     {
       "hold": "option",               // option, command, control, shift, fn, joined with "+"
-      "key": "e",                     // tab, keyAboveTab, space, return, escape, f1…f12, arrows, or one character
+      "key": "e",                     // a named key (below) or one character
       "apps": "all",                  // all, active, nonActive, underCursor, appUnderCursor
       "spaces": "all",                // all, visible, nonVisible
       "screens": "all",               // all, showingSwitcher
@@ -124,7 +152,7 @@ are any. Open the file from the menu (`⌘,`). Every key is optional.
       "order": "recentlyFocused",     // recentlyFocused, recentlyCreated, alphabetical, space
       "grouping": "allWindows",       // allWindows, oneWindowPerApp
       "tabs": "singleWindow",         // singleWindow (hide background tabs), separateWindows
-      "onRelease": "focus",           // focus, hold (stay open; ↩ switches), search
+      "onRelease": "focus",           // focus, hold, search
       "style": "thumbnails",          // overrides appearance.style for this shortcut
       "size": "auto",                 // overrides appearance.size
       "theme": "soprano",             // overrides theme
@@ -172,7 +200,7 @@ are any. Open the file from the menu (`⌘,`). Every key is optional.
     "fadeOut": false,               // fade the panel out when it closes
     "previewSelectedWindow": false, // show the selected window full size behind the panel
     "previewFadeIn": true,
-    "searchHint": true,             // "s search" hint in the panel header
+    "searchHint": true,             // "S search" hint in the panel header
     "captureInBackground": true     // keep thumbnails fresh while closed
   },
 
@@ -193,10 +221,15 @@ are any. Open the file from the menu (`⌘,`). Every key is optional.
 Notes:
 
 - Modifiers: `option`/`alt`/`opt`/`⌥`, `command`/`cmd`/`⌘`, `control`/`ctrl`/`⌃`,
-  `shift`/`⇧`, `fn`/`function`. Key aliases: `enter`, `esc`, `backspace`, `spacebar`,
-  and `` ` ``/`grave`/`backtick`/`section` for `keyAboveTab`.
+  `shift`/`⇧`, `fn`/`function`, case-insensitive.
+- Named keys: `tab`, `keyAboveTab`, `space`, `return`, `escape`, `delete`,
+  `forwardDelete`, `left`, `right`, `up`, `down`, `home`, `end`, `pageUp`, `pageDown`,
+  `f1`…`f12`. Aliases: `enter`, `esc`, `backspace`, `spacebar`, and
+  `` ` ``/`grave`/`backtick`/`section` for `keyAboveTab`. Any other single character is a
+  letter key.
 - A shortcut that repeats an earlier `hold` + `key` is dropped with a warning; so are
-  shortcuts beyond the 9th. An empty `shortcuts` array keeps the defaults.
+  shortcuts beyond the 9th. An empty `shortcuts` array keeps the defaults. Warnings name
+  shortcuts by 0-based position: `shortcuts[2]` is shortcut 3.
 - Two controls on the same key: the later one in the order focus, cancel, close,
   minimize, fullscreen, quit, hide, search is disabled with a warning.
 - With `menuBarIcon: "hidden"`, open Soprano Tab again from Spotlight or Finder to get
@@ -209,8 +242,8 @@ prefix, and an exact match wins over a prefix.
 
 - `hide`: `never`, `always` (none of the app's windows are listed),
   `whenNoOpenWindow` (the app is not listed while it has no window),
-  `whenTitleContains` (windows whose title contains one of `titleContains`,
-  case-insensitive).
+  `whenTitleContains` (windows whose title contains one of `titleContains`, a string or
+  a list of strings, case-insensitive).
 - `ignoreShortcuts`: `never`, `always` (the shortcuts reach the app while it is
   frontmost), `whenFullscreen` (only while its focused window is fullscreen).
 
@@ -221,31 +254,50 @@ Workspace and Receiver, NICE DCV, VMware Fusion and UTM.
 
 ## Command line
 
-The app binary doubles as a command line client for the running app. Every command prints
-JSON (exit 0), or an error on stderr (exit 1), e.g. "Soprano Tab is not running.".
+The app binary doubles as a command line client for the running app:
+
+```text
+Usage: SopranoTab <command>
+
+  list [--detailed]               List windows, most recently focused first
+  focus <window-id>               Focus a window by its id (from list)
+  focus --last-focus-order <n>    Focus the n-th most recently focused window (0 = current)
+  show [<1-9>]                    Open the switcher for shortcut n (default 1)
+  hide                            Close the switcher
+  help                            Show this help
+```
 
 ```bash
 TAB="/Applications/Soprano Tab.app/Contents/MacOS/SopranoTab"
-"$TAB" list                          # every window, most recently focused first
-"$TAB" list --detailed               # with more fields per window
-"$TAB" focus <window-id>             # a window id from list
-"$TAB" focus --last-focus-order 1    # by position in the focus order
-"$TAB" show                          # open the switcher with shortcut 1
-"$TAB" show 2                        # … with shortcut 2 (1–9)
-"$TAB" hide                          # close the switcher
+"$TAB" list
+"$TAB" focus --last-focus-order 1    # the window before the current one
+"$TAB" show 2
 ```
+
+- Output is JSON (pretty-printed, sorted keys) with exit status 0: `"ok" : true`, plus
+  `windows` for `list`.
+- `list` lists windows only, no apps without windows; each has `id` and `title`.
+  `--detailed` adds `appName`, `appBundleId`, `spaceIndexes`, `lastFocusOrder`,
+  `creationOrder`, `isTabbed`, `isHidden`, `isFullscreen`, `isMinimized`,
+  `isOnAllSpaces`, `position` (`x`, `y`) and `size` (`width`, `height`).
+- `focus --last-focus-order <n>` focuses the n-th window of `list` (0 = most recent).
+- `show` opens the switcher without a held key; it stays open until `↩`, `⎋`, a click or
+  `hide`. A shortcut number that settings.json does not define is an error.
+- `help` / `--help` print the usage (exit 0). Malformed arguments print the usage on
+  stderr (exit 2). Errors print on stderr with exit 1: "Soprano Tab is not running.",
+  "Soprano Tab did not answer.", "No window <id>", "No shortcut <n>; <count> configured".
 
 ## Menu bar
 
-Show Switcher (shortcut 1), Open settings.json… (`⌘,`), the warning count while
-settings.json has problems, Permissions…, Launch at Login, About Soprano Tab, and Quit
-Soprano Tab (`⌘Q`).
+Show Switcher (shortcut 1), Open settings.json… (`⌘,`), "settings.json: N warnings" while
+the file has problems (hover it for the messages), Permissions…, Launch at Login, About
+Soprano Tab, and Quit Soprano Tab (`⌘Q`).
 
 ## Permissions
 
-The permissions window (first launch, and Permissions… in the menu) shows each permission
-with a lamp, green when granted and red when missing, and an Open System Settings button.
-It updates as soon as you grant one.
+The permissions window (first launch, Permissions… in the menu, and reopening the app
+while one is missing) shows each permission with a lamp, green when granted and red when
+missing, and an Open System Settings button. It updates as soon as you grant one.
 
 - **Accessibility** is required. Without it no shortcut works.
 - **Screen Recording** gives thumbnails and the preview; without it the switcher shows app
@@ -263,7 +315,6 @@ swift test
 ./scripts/dev.sh                      # build, package and launch Soprano Tab Dev.app
 .build/debug/SopranoTab snapshot --out /tmp/tab.png --keys "tab tab"
 .build/debug/SopranoTab snapshot --out /tmp/tab.png --scenario crowded --style appIcons --size medium
-.build/debug/SopranoTab snapshot --out /tmp/tab.png --keys "s" --search "saf" --report /tmp/tab.json
 .build/debug/SopranoTab snapshot --out /tmp/perm.png --onboarding --permissions accessibility=missing,screen=granted
 ```
 

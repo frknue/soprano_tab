@@ -8,32 +8,37 @@ preview, window actions from the switcher, up to 9 shortcuts with their own filt
 trackpad swipe, exceptions, command line. `docs/ROADMAP.md` lists what is deliberately
 not copied.
 
-## Done
+## Done (phase 1)
 
-Phase 1 in progress; the modules in `docs/ARCHITECTURE.md` are being built in parallel:
-
-- Contracts (models, keys, settings, switching, CLI protocol, geometry, system and
-  switcher contracts).
-- Core: settings resolver, template and editor; window list, exceptions, screen choice,
-  search, session, tile layout, grid navigation; key router and swipe tracker.
-- System: window catalog, Spaces, focus order, thumbnails, window actions, app icons,
-  keyboard and gesture taps.
-- Switcher: controller, model builder, panel window and views.
-- Shell: app delegate, menu bar, login item, settings and theme centers, permissions
-  window, CLI server and client.
-- Fixtures and the offscreen `snapshot` harness; packaging scripts and vendored chrome.
+- Core (`SopranoTabCore`): settings resolver with per-key warnings, commented template
+  and comment-preserving editor; window list (exceptions, filters, order, grouping, show
+  policies), screen choice, fuzzy search, session, tile layout for the three styles and
+  auto size, grid navigation; key router and swipe tracker.
+- Live window catalog: AX plus SkyLight, including windows on other Spaces through
+  remote-token AX elements, Spaces, focus and creation order, live updates from AX
+  observers and workspace notifications.
+- Window actions with cross-Space focus (front process + key window + raise), close,
+  minimize, fullscreen, quit (Finder only with `QuitMenuItem`), hide; cursor follows focus.
+- Thumbnails via `CGSHWCaptureWindowList` with a ScreenCaptureKit fallback, cached and
+  refreshed in the background; app icons.
+- Keyboard tap (ISO keyboards mapped so the key above Tab is shortcut 2 on every layout)
+  and trackpad gesture tap.
+- Switcher panel in thumbnails, app icons and titles styles with search strip, preview,
+  window-control lamps, badges, header and key hints.
+- Menu bar item, login item, `settings.json` with live reload and warnings in the menu,
+  Soprano theme following, command line (`list`, `focus`, `show`, `hide`, `help`),
+  permissions window with first-launch prompts.
+- Offscreen `snapshot` harness with fixture desktops (standard, crowded, windowless,
+  empty, multiScreen) and the permissions window; packaging, signing and sync scripts.
+- 256 tests.
 
 ## Next
 
-1. Finish the build: `swift build` and `swift test` green.
-2. Visual QA of every style, size, the search strip, preview and the permissions window
-   through `snapshot` PNGs.
-3. `./scripts/install.sh`, then a first manual run with the real permissions.
+1. First live run by Furkan: install, grant Accessibility and Screen Recording, use the
+   switcher on the real desktop (Spaces, fullscreen apps, several screens, German
+   keyboard).
+2. Fixes from that run.
 
 ## Open decisions
 
-None known. One assumption to check:
-
-- **Key above Tab**: `keyAboveTab` is `kVK_ANSI_Grave` (0x32), the key above Tab on ANSI
-  keyboards. On ISO keyboards (German) that position is `kVK_ISO_Section` (0x0A); the
-  second default shortcut assumes the ANSI code. Check on an ISO keyboard.
+None known.

@@ -505,12 +505,14 @@ Controller behavior:
 - **advance**: next/previous; redraw when presented. **release**: per the shortcut's
   `onRelease`: `focus` → focus the selection and close; `hold` → stay open; `search` →
   begin search. Commands: focusSelected, cancel, moves (`session.move` with the current
-  layout), closeWindow (windowless: ignored) → `actions.close` and remove the item;
-  quitApp → `actions.quitApp` and remove the app's items; toggleMinimize,
-  toggleFullscreen, toggleHideApp → the action, item stays (its badges update from the
-  catalog); beginSearch → `session.beginSearch()`, relayout with the search strip,
-  `presenter.setSearchFocused(true)`, `router.setSearching(true)`. A list that empties
-  after close/quit closes the switcher.
+  layout), closeWindow (windowless: ignored) → `actions.close`; quitApp →
+  `actions.quitApp`; toggleMinimize, toggleFullscreen, toggleHideApp → the action. Items
+  are never removed optimistically: they leave (or their badges update) through the live
+  catalog update once the window is really closed or the app really quit, so a refused
+  quit (Finder) or a "Save changes?" sheet keeps its tiles. beginSearch →
+  `session.beginSearch()`, relayout with the search strip,
+  `presenter.setSearchFocused(true)`, `router.setSearching(true)`. A live update that
+  empties the list closes the switcher.
 - **Focus** = `actions.focus(item)`; then `mouse.cursorFollowsFocus` (`always`, or
   `differentScreen` when the item's display differs from the mouse's) →
   `actions.moveCursor`; then close.
