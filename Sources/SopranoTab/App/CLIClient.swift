@@ -46,9 +46,13 @@ enum CLIClient {
         }
     }
 
-    /// Runs the command and exits: 0 with the response JSON on stdout; 1 with the error on
-    /// stderr; 2 with the usage on stderr for `help` and malformed arguments.
+    /// Runs the command and exits: 0 with the response JSON on stdout (or the usage for
+    /// `help`); 1 with the error on stderr; 2 with the usage on stderr for malformed arguments.
     static func run(arguments: [String]) -> Never {
+        if let command = arguments.first, command == "help" || command == "--help" {
+            print(usage, terminator: "")
+            exit(0)
+        }
         guard let request = request(from: arguments) else {
             fail(usage, status: 2)
         }

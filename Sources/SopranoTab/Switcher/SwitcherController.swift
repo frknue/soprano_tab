@@ -318,21 +318,17 @@ final class SwitcherController {
         }
     }
 
-    /// Windowless apps have no window to close.
+    /// Windowless apps have no window to close. The tile stays until the catalog reports
+    /// the window gone: the app may refuse or ask first ("Save changes?").
     private func closeWindow(_ item: WindowInfo) {
         guard !item.isWindowlessApp else { return }
         actions.close(item)
-        session?.remove(id: item.id)
-        itemsDidShrink()
     }
 
+    /// The app's tiles stay until the catalog reports it terminated (Finder refuses to
+    /// quit unless its Quit menu item is enabled; apps may ask to save).
     private func quitApp(_ item: WindowInfo) {
         actions.quitApp(item)
-        let appItems = session?.allItems.filter { $0.app.pid == item.app.pid } ?? []
-        for appItem in appItems {
-            session?.remove(id: appItem.id)
-        }
-        itemsDidShrink()
     }
 
     /// The item stays; its badges follow from the catalog update the action causes.
@@ -344,18 +340,6 @@ final class SwitcherController {
     private func toggleFullscreen(_ item: WindowInfo) {
         guard !item.isWindowlessApp else { return }
         actions.toggleFullscreen(item)
-    }
-
-    /// After close/quit: a list that emptied closes the switcher.
-    private func itemsDidShrink() {
-        guard let session else { return }
-        if session.allItems.isEmpty {
-            close()
-            return
-        }
-        relayout()
-        render()
-        updatePreview()
     }
 
     private func beginSearch() {
@@ -418,12 +402,18 @@ final class SwitcherController {
     }
 
     /// Live update: re-lists the shortcut's items, keeping the selection where possible.
+    /// A list that a catalog change empties (the last window closed, its app quit) closes
+    /// the switcher; a list empty at activation stays and shows "no windows".
     private func refreshOpenSwitcher(with snapshot: WindowSnapshot) {
         guard let session, let current = screen else { return }
         let screen = snapshot.screen(withID: current.id)
             ?? ScreenChooser.screen(for: settings.appearance.screen, in: snapshot)
             ?? current
         let items = listedItems(forShortcut: session.shortcutIndex, in: snapshot, on: screen)
+        if items.isEmpty, !session.allItems.isEmpty {
+            close()
+            return
+        }
         let knownIDs = Set(session.allItems.map(\.id))
         self.session?.update(items: items)
         self.screen = screen

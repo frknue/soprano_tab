@@ -149,8 +149,24 @@ enum SwitcherTestDesktop {
     }
 }
 
+/// Window actions that are asked but never happen (Finder refusing to quit, a window
+/// answering close with a "Save changes?" sheet): records each call, leaves the catalog alone.
+@MainActor
+final class RefusingWindowActions: WindowActing {
+    private(set) var log: [WindowActionRecord] = []
+
+    func focus(_ item: WindowInfo) { log.append(.focus(item.id)) }
+    func close(_ item: WindowInfo) { log.append(.close(item.id)) }
+    func toggleMinimize(_ item: WindowInfo) { log.append(.toggleMinimize(item.id)) }
+    func toggleFullscreen(_ item: WindowInfo) { log.append(.toggleFullscreen(item.id)) }
+    func quitApp(_ item: WindowInfo) { log.append(.quitApp(item.app.pid)) }
+    func toggleHideApp(_ item: WindowInfo) { log.append(.toggleHideApp(item.app.pid)) }
+    func moveCursor(toCenterOf item: WindowInfo) { log.append(.moveCursor(item.id)) }
+}
+
 /// A `SwitcherController` on fixtures with a recording presenter and a manual scheduler,
-/// plus helpers that type like a person at the keyboard.
+/// plus helpers that type like a person at the keyboard. Actions go to `actions` (which
+/// applies them to the fixture source), or to `refusingActions` when `refusesActions`.
 @MainActor
 final class SwitcherHarness {
     /// Settings and haptic ticks the environment closures read and write.
@@ -166,15 +182,21 @@ final class SwitcherHarness {
     let source: FixtureWindowSource
     let thumbnails: FixtureThumbnails
     let actions: RecordingWindowActions
+    let refusingActions: RefusingWindowActions
     let presenter: RecordingPresenter
     let scheduler: ManualScheduler
     let controller: SwitcherController
     private let state: State
 
-    init(snapshot: WindowSnapshot = SwitcherTestDesktop.snapshot(), settings: SopranoTabSettings = SopranoTabSettings()) {
+    init(
+        snapshot: WindowSnapshot = SwitcherTestDesktop.snapshot(),
+        settings: SopranoTabSettings = SopranoTabSettings(),
+        refusesActions: Bool = false
+    ) {
         let source = FixtureWindowSource(snapshot: snapshot)
         let thumbnails = FixtureThumbnails(source: source)
         let actions = RecordingWindowActions(source: source)
+        let refusingActions = RefusingWindowActions()
         let presenter = RecordingPresenter()
         let scheduler = ManualScheduler()
         let state = State(settings: settings)
@@ -187,13 +209,14 @@ final class SwitcherHarness {
         self.source = source
         self.thumbnails = thumbnails
         self.actions = actions
+        self.refusingActions = refusingActions
         self.presenter = presenter
         self.scheduler = scheduler
         self.state = state
         controller = SwitcherController(
             source: source,
             thumbnails: thumbnails,
-            actions: actions,
+            actions: refusesActions ? refusingActions as WindowActing : actions,
             icons: FixtureIcons(),
             presenter: presenter,
             environment: environment

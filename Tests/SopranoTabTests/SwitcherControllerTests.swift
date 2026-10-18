@@ -127,7 +127,7 @@ struct SwitcherControllerTests {
         #expect(harness.controller.session?.allItems.contains { $0.app.pid == SwitcherTestDesktop.browser.pid } == false)
     }
 
-    @Test("Closing the last listed window closes the switcher")
+    @Test("The catalog losing the last listed window closes the switcher")
     func emptiedListCloses() {
         let only = SwitcherTestDesktop.snapshot(windows: [SwitcherTestDesktop.windows[0]])
         let harness = SwitcherHarness(snapshot: only, settings: settings { $0.shortcuts[0].filters.windowlessApps = .hide })
@@ -137,6 +137,39 @@ struct SwitcherControllerTests {
         #expect(harness.actions.log == [.close(.window(1))])
         #expect(!harness.controller.isActive)
         #expect(!harness.presenter.isPresented)
+    }
+
+    @Test("A refused close or quit leaves every tile in place and the switcher open")
+    func refusedActionsKeepItems() {
+        let harness = SwitcherHarness(refusesActions: true)
+        harness.pressOptionTab()
+        harness.scheduler.fireAll()
+        let listed = itemIDs(harness)
+
+        harness.type("w", holding: .option)
+        harness.type("q", holding: .option)
+        harness.presenter.onControl?(4, .close)
+        #expect(harness.refusingActions.log == [
+            .close(.window(3)), .quitApp(SwitcherTestDesktop.browser.pid), .close(.window(5)),
+        ])
+        #expect(harness.controller.isActive)
+        #expect(itemIDs(harness) == listed)
+        #expect(harness.presenter.model?.tiles.map(\.id) == listed)
+        #expect(harness.selectedID == .window(3))
+    }
+
+    @Test("A list empty at activation shows no windows and stays open through catalog changes")
+    func emptyAtActivationStaysOpen() {
+        let harness = SwitcherHarness(
+            snapshot: SwitcherTestDesktop.snapshot(windows: []),
+            settings: settings { $0.shortcuts[0].onRelease = .hold }
+        )
+        harness.pressOptionTab()
+        harness.scheduler.fireAll()
+        #expect(harness.presenter.model?.emptyText == "no windows")
+        harness.source.mutate { $0.mouseLocation = CGPoint(x: 10, y: 10) }
+        #expect(harness.controller.isActive)
+        #expect(harness.presenter.isPresented)
     }
 
     // MARK: - Exceptions, show, settings
