@@ -5,11 +5,14 @@ import SopranoTabCore
 // (the panel and everything drawn in it). The controller builds a `SwitcherViewModel`;
 // the presenter only renders it and reports pointer and text input back.
 
-/// A window control shown on the hovered tile (AltTab's colored circles, drawn as lamps).
+/// A control lamp shown on the hovered tile (AltTab's colored circles, drawn as lamps):
+/// close, minimize and fullscreen on a window's tile, quit on a windowless app's tile.
 enum TileControl: Equatable, CaseIterable {
     case close
     case minimize
     case fullscreen
+    /// Quits the tile's app.
+    case quit
 }
 
 /// Badges on a tile.

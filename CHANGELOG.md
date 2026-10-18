@@ -13,7 +13,7 @@ All notable changes to Soprano Tab are documented here. The format follows
 - Two default shortcuts: `⌥⇥` for the windows of every app and `⌥` + the key above Tab for the windows of the active app; the key above Tab works on every keyboard layout (`` ` `` on US, `^` on German).
 - A quick `⌥⇥`, released before `appearance.showDelayMs` (100 ms), switches to the previous window without showing the panel.
 - Keys while the switcher is open: `⇥` / `⇧⇥` next / previous, `⇧` alone steps back, arrow keys, `↩` open, `⎋` cancel, `W` close, `M` minimize, `F` fullscreen, `Q` quit app, `H` hide app, `S` search, and optional vim keys (`controls.vimKeys`); every key can be rebound or disabled under `controls`.
-- Mouse: click a tile to switch, hover to highlight (`mouse.hoverSelects` to select), close / minimize / fullscreen lamps on the hovered tile, and `mouse.cursorFollowsFocus`.
+- Mouse: click a tile to switch, hover to highlight (`mouse.hoverSelects` to select), close / minimize / fullscreen lamps on the hovered tile, a quit lamp on the tile of an app without windows (`appearance.windowControls`), and `mouse.cursorFollowsFocus`.
 - Search by window title or app name with fuzzy matching (`S`); releasing `⌥` while searching keeps the switcher open.
 - Preview of the selected window at its real position (`appearance.previewSelectedWindow`).
 - Up to 9 shortcuts, each with its own filters (apps, Spaces, screens, minimized, hidden, fullscreen, windowless apps), order, grouping, tab handling, appearance, and release behavior (`onRelease`: focus, hold or search).

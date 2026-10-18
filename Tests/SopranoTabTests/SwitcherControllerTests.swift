@@ -286,6 +286,21 @@ struct SwitcherControllerTests {
         #expect(harness.selectedID == .window(3))
     }
 
+    @Test("A windowless app's quit lamp quits that app, not the selected item's")
+    func quitLampQuitsWindowlessApp() throws {
+        let notes = AppInfo(pid: 400, bundleID: "test.notes", name: "Notes")
+        let windowless = WindowInfo(id: .windowlessApp(notes.pid), app: notes, title: "", lastFocusOrder: 5)
+        let harness = SwitcherHarness(snapshot: SwitcherTestDesktop.snapshot(windows: SwitcherTestDesktop.windows + [windowless]))
+        harness.pressOptionTab()
+        harness.scheduler.fireAll()
+        let index = try #require(itemIDs(harness).firstIndex(of: .windowlessApp(notes.pid)))
+        harness.presenter.onControl?(index, .quit)
+        #expect(harness.actions.log == [.quitApp(notes.pid)])
+        #expect(harness.controller.isActive)
+        #expect(!itemIDs(harness).contains(.windowlessApp(notes.pid)))
+        #expect(harness.selectedID == .window(3))
+    }
+
     // MARK: - Preview and cursor
 
     @Test("The preview follows the selection and hides for minimized windows")

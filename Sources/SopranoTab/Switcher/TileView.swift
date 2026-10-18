@@ -16,8 +16,9 @@ final class TileView: FlippedView {
     private(set) var itemID: ItemID?
     private(set) var isSelected = false
     private(set) var isHovered = false
-    /// The window controls (lamps) are showing.
-    private(set) var showsControls = false
+    /// The control lamps showing, in order: none unless hovered, close / minimize /
+    /// fullscreen on a window's tile, quit alone on a windowless app's tile.
+    private(set) var controls: [TileControl] = []
 
     var onClick: ((Int) -> Void)?
     var onControl: ((Int, TileControl) -> Void)?
@@ -101,7 +102,11 @@ final class TileView: FlippedView {
         self.colors = theme.colors
         self.isSelected = isSelected
         self.isHovered = isHovered
-        showsControls = showsWindowControls && isHovered && !tile.isWindowlessApp
+        if showsWindowControls && isHovered {
+            controls = tile.isWindowlessApp ? [.quit] : [.close, .minimize, .fullscreen]
+        } else {
+            controls = []
+        }
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -245,7 +250,7 @@ final class TileView: FlippedView {
         rail.layer?.backgroundColor = colors.accent.cgColor
 
         for (control, lamp) in lamps {
-            lamp.isHidden = !showsControls
+            lamp.isHidden = !controls.contains(control)
             RetroLamp.light(lamp, color: control.color(in: colors))
         }
     }
@@ -268,7 +273,7 @@ final class TileView: FlippedView {
         stripIcon.frame = CGRect(x: titleFrame.minX, y: (titleFrame.midY - iconSide / 2).rounded(), width: iconSide, height: iconSide)
         stripIcon.layoutLayers()
         var trailing = titleFrame.maxX
-        if showsControls {
+        if !controls.isEmpty {
             trailing = layoutLamps(trailing: trailing, centerY: titleFrame.midY) - Self.lampGap
         }
         let leading = stripIcon.frame.maxX + 6
@@ -282,7 +287,7 @@ final class TileView: FlippedView {
         titleLabel.frame = SwitcherText.lineFrame(
             minX: titleFrame.minX, maxX: titleFrame.maxX, centerY: titleFrame.midY, font: RetroFont.body(11)
         )
-        if showsControls {
+        if !controls.isEmpty {
             // The title strip is too narrow for lamps and a title; they sit over the icon's
             // top-trailing corner instead.
             _ = layoutLamps(trailing: imageFrame.maxX, centerY: imageFrame.minY + Self.lampSide / 2)
@@ -292,7 +297,7 @@ final class TileView: FlippedView {
 
     private func layoutTitleRow() {
         var trailing = titleFrame.maxX
-        if showsControls {
+        if !controls.isEmpty {
             trailing = layoutLamps(trailing: trailing, centerY: titleFrame.midY) - 8
         }
         if !chips.isEmpty {
@@ -320,12 +325,13 @@ final class TileView: FlippedView {
         )
     }
 
-    /// Places the lamps right-aligned at `trailing`; returns the leading edge of the group.
+    /// Places the shown lamps right-aligned at `trailing`; returns the leading edge of the group.
     private func layoutLamps(trailing: CGFloat, centerY: CGFloat) -> CGFloat {
         let side = Self.lampSide
-        var x = trailing - CGFloat(lamps.count) * side - CGFloat(lamps.count - 1) * Self.lampGap
+        let count = CGFloat(controls.count)
+        var x = trailing - count * side - (count - 1) * Self.lampGap
         let leading = x
-        for (_, lamp) in lamps {
+        for (control, lamp) in lamps where controls.contains(control) {
             lamp.frame = CGRect(x: x, y: (centerY - side / 2).rounded(), width: side, height: side)
             x += side + Self.lampGap
         }
@@ -362,10 +368,9 @@ final class TileView: FlippedView {
         }
     }
 
-    /// The lamp under `point` (tile coordinates), with a few points of slack around each.
+    /// The shown lamp under `point` (tile coordinates), with a few points of slack around each.
     func control(at point: CGPoint) -> TileControl? {
-        guard showsControls else { return nil }
-        return lamps.first { $0.view.frame.insetBy(dx: -3, dy: -3).contains(point) }?.control
+        lamps.first { controls.contains($0.control) && $0.view.frame.insetBy(dx: -3, dy: -3).contains(point) }?.control
     }
 
     override func accessibilityPerformPress() -> Bool {
@@ -380,6 +385,7 @@ private extension TileControl {
         case .close: "Close"
         case .minimize: "Minimize"
         case .fullscreen: "Fullscreen"
+        case .quit: "Quit"
         }
     }
 
@@ -388,6 +394,7 @@ private extension TileControl {
         case .close: colors.danger
         case .minimize: colors.yellow
         case .fullscreen: colors.success
+        case .quit: colors.danger
         }
     }
 }

@@ -277,7 +277,8 @@ public struct AppearanceSettings: Equatable, Sendable {
     public var screen: ScreenChoice = .active
     public var titles: TitleContent = .windowTitle
     public var titleTruncation: TitleTruncation = .end
-    /// Close / minimize / fullscreen lamps on the hovered tile (AltTab's colored circles).
+    /// Close / minimize / fullscreen lamps on the hovered tile (AltTab's colored circles), a
+    /// quit lamp on a windowless app's tile.
     public var windowControls = true
     /// Space number badges on tiles.
     public var spaceLabels = false

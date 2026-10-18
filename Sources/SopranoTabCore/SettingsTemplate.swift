@@ -87,7 +87,7 @@ public enum SettingsTemplate {
         "titles": "windowTitle",
         // \(values(TitleTruncation.self))
         "titleTruncation": "end",
-        // Close / minimize / fullscreen buttons on the hovered tile.
+        // Close / minimize / fullscreen buttons on the hovered tile, quit for apps without windows.
         "windowControls": true,
         // Space numbers on tiles.
         "spaceLabels": false,

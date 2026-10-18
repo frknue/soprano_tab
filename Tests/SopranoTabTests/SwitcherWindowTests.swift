@@ -42,14 +42,19 @@ struct SwitcherWindowTests {
         #expect(window.tileViews.map(\.isSelected) == [false, false, true])
     }
 
-    @Test("window controls show only on the hovered tile of a real window")
+    @Test("hover shows a window's close, minimize and fullscreen lamps, and a windowless app's quit lamp alone")
     func controlsFollowHover() {
         let window = SwitcherWindow()
         window.present(model(tiles: threeTiles(), selectedIndex: 0, hoveredIndex: 1), on: screen)
-        #expect(window.tileViews.map(\.showsControls) == [false, true, false])
+        #expect(window.tileViews.map(\.controls) == [[], [.close, .minimize, .fullscreen], []])
 
         window.update(model(tiles: threeTiles(), selectedIndex: 0, hoveredIndex: 2))
-        #expect(window.tileViews.map(\.showsControls) == [false, false, false])
+        #expect(window.tileViews.map(\.controls) == [[], [], [.quit]])
+
+        // The lone quit lamp ends the title strip (tile-local (6, 4, w − 12, 18), flipped).
+        let windowless = window.tileViews[2]
+        let lampCenter = CGPoint(x: windowless.bounds.maxX - 6 - TileView.lampSide / 2, y: 4 + 18 / 2)
+        #expect(windowless.control(at: lampCenter) == .quit)
     }
 
     @Test("tiles read as title and app name to VoiceOver")

@@ -50,7 +50,7 @@ by default.
 - **Badges** on each tile: `min`, `hidden`, `full`, and optionally the Space number
   (`all` for windows on every Space).
 - **Window controls**: hovering a tile shows close (red), minimize (yellow) and fullscreen
-  (green) lamps.
+  (green) lamps; hovering an app without windows shows one quit (red) lamp.
 - **Search**: press `S` while the switcher is open and type; matches on the window title
   or app name, fuzzy, accent-insensitive, several words all need to match. Matched
   letters are highlighted. `no matches` when nothing fits.
@@ -86,7 +86,8 @@ into the search field. Releasing `⌥` while searching keeps the switcher open, 
 let go to type. Keys that do nothing are swallowed, never passed to the app behind.
 
 Mouse: hovering highlights a tile (and selects it with `mouse.hoverSelects`), a click
-switches to it, and the lamps on the hovered tile close, minimize or fullscreen its window.
+switches to it, and the lamps on the hovered tile close, minimize or fullscreen its window,
+or quit an app without windows.
 
 ## Shortcuts
 
@@ -193,7 +194,7 @@ A file that is not valid JSON keeps the last good settings running.
     "screen": "active",             // active (focused window's screen), withMouse, withMenuBar
     "titles": "windowTitle",        // windowTitle, appName, appNameAndWindowTitle
     "titleTruncation": "end",       // start, middle, end
-    "windowControls": true,         // close / minimize / fullscreen lamps on hover
+    "windowControls": true,         // close / minimize / fullscreen lamps on hover, quit for windowless apps
     "spaceLabels": false,           // Space number badges
     "statusIcons": true,            // min / hidden / full badges
     "showDelayMs": 100,             // 0–2000; a quicker tap switches without showing the panel

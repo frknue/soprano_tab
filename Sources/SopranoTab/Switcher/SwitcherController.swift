@@ -386,6 +386,8 @@ final class SwitcherController {
             toggleMinimize(item)
         case .fullscreen:
             toggleFullscreen(item)
+        case .quit:
+            quitApp(item)
         }
     }
 
