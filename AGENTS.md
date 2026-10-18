@@ -1,0 +1,112 @@
+# Soprano Tab
+
+Window switcher for macOS in the Soprano family: a copy of AltTab (every window, thumbnails,
+search, preview, window actions, up to 9 shortcuts with filters, trackpad swipe, exceptions,
+command line) in Soprano's "Mission Control" chrome. Swift 6 + programmatic AppKit (no
+storyboards/xibs/SwiftUI), SPM, macOS 14+, menu-bar app (no Dock icon). Shipped as a
+hand-packaged `.app` via `scripts/install.sh`. Local-only: no GitHub remote yet.
+
+## Commands
+
+Homebrew Swift with the Command Line Tools SDK. Xcode's newer SDK breaks Homebrew Swift,
+so pin `DEVELOPER_DIR` on every direct Swift command:
+
+```bash
+export DEVELOPER_DIR=/Library/Developer/CommandLineTools PATH="/opt/homebrew/opt/swift/bin:$PATH"
+swift build
+swift test
+swift test --filter SwitcherKeyRouterTests
+./scripts/dev.sh --build-only        # package .build/debug/Soprano Tab Dev.app (com.soprano.tab.dev)
+./scripts/install.sh                 # release build → /Applications/Soprano Tab.app
+.build/debug/SopranoTab snapshot --out /tmp/tab.png [--scenario standard|crowded|windowless|empty|multiScreen] [--style …] [--size …] [--keys "tab tab"] [--search "…"] [--preview] [--report /tmp/tab.json]
+.build/debug/SopranoTab snapshot --out /tmp/perm.png --onboarding --permissions accessibility=missing,screen=granted
+```
+
+`ld: warning: building for macOS-14.0 …` link warnings are expected. There is no linter or
+formatter; match surrounding style.
+
+## Verification
+
+- Verify source changes with `swift build` and `swift test`.
+- Verify UI with the offscreen `snapshot` subcommand and read the PNG (options in
+  `docs/ARCHITECTURE.md` → Fixtures and the snapshot harness).
+- Never launch the GUI or run `./scripts/dev.sh` without `--build-only` unless the user
+  asks: the app asks for Accessibility and Screen Recording and grabs `⌥⇥` system-wide.
+
+## Installing completed changes
+
+After a verified change to the app or its packaging, run `./scripts/install.sh` as the last
+step. It replaces `/Applications/Soprano Tab.app` without restarting a running instance.
+Never use `sudo`; report permission problems instead. Docs-only work needs no install.
+
+## Commits and changelog
+
+- Push, open PRs, or create tags only when the user asks for that remote action.
+- Short imperative subjects, `feat:` / `fix:` / `docs:` / `test:` / `chore:` prefixes.
+- User-visible changes get a line under `## [Unreleased]` in `CHANGELOG.md` (Keep a
+  Changelog groups: Added, Changed, Deprecated, Removed, Fixed, Security), written for the
+  user and naming the shortcut or setting. Never add a version heading during feature work.
+- Releases: rename `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh `[Unreleased]`,
+  set `CFBundleShortVersionString` and `CFBundleVersion` in `Support/Info.plist` (the only
+  version source), `swift test`, install, commit `release: vX.Y.Z`.
+
+## Architecture
+
+`docs/ARCHITECTURE.md` is the contract: modules and file ownership, the contract files,
+binding Core signatures, settings schema and resolution rules, key router, system APIs,
+switcher behavior, harness options and the visual spec. Keep it current when a seam,
+setting, key or harness option changes. `docs/ROADMAP.md` lists what is deliberately not
+copied or not built.
+
+- `Sources/SopranoTabCore/` — pure logic, Foundation + CoreGraphics, no AppKit: models,
+  keys, settings, window list, exceptions, search, session, tile layout, key router,
+  swipe tracker, CLI messages.
+- `Sources/SopranoTab/System/` — the live macOS layer: private API bridge, window catalog,
+  thumbnails, window actions, app icons, keyboard and gesture taps.
+- `Sources/SopranoTab/Switcher/` — `SwitcherController` (state, input, actions) and
+  `SwitcherWindow` (panel, tiles, search strip, preview).
+- `Sources/SopranoTab/App/`, `Shell/` — `main.swift`, app delegate (composition root),
+  menu bar, login item, settings and theme centers, permissions window, CLI server/client.
+- `Sources/SopranoTab/Fixtures/` — fake desktop and the `snapshot` harness.
+- `Sources/SopranoTab/Vendored/`, `Sources/SopranoTabCore/Vendored/` — Soprano chrome and
+  `JSONCText`, synced from Soprano.
+
+## Conventions
+
+- Chrome comes from Soprano: square corners, `ThemeColors` tokens only, Departure Mono via
+  `RetroFont.display` at 11 or 22 pt only (small caps; never uppercase strings by hand),
+  `RetroFont.body` for running text, `RetroLamp` the only round chrome. Appearance is
+  forced dark.
+- Core is AppKit-free and everything in it is `public`.
+- `System/` is the only place that touches AX, SkyLight, ScreenCaptureKit or
+  `CGEventTap`. The switcher talks to it only through the protocols in
+  `System/SystemContracts.swift`, and the shell to the switcher only through
+  `Switcher/SwitcherContracts.swift`. Contract files change only together with every
+  consumer.
+- Settings live only in `~/.config/soprano-tab/settings.json` (`SOPRANO_TAB_CONFIG`
+  overrides the path). A new setting needs its type in `Settings.swift`, the resolver,
+  the template, the README settings section, and a changelog line.
+- Tests: swift-testing, one `struct …Tests` per file, sentence-style names. Test files
+  `import AppKit`, never `Foundation` (the `_Testing_Foundation` overlay breaks the build).
+  Tests never touch real settings, real windows, permissions or the user's defaults:
+  settings tests inject the file URL, switcher tests use the fixtures, system tests cover
+  only the pure parts.
+
+## Gotchas
+
+- `Sources/SopranoTab/Vendored/` and `Sources/SopranoTabCore/Vendored/JSONCText.swift` are
+  copied from Soprano by `scripts/sync-soprano-chrome.sh`. Never edit them here: change
+  Soprano, commit there, re-run the script.
+- `SopranoResources` (App/) keeps Soprano's name so vendored files compile unchanged; the
+  SPM resource bundle is `SopranoTab_SopranoTab.bundle`.
+- Private APIs (SkyLight, HIServices) go only through `System/PrivateAPIs.swift` via
+  `dlsym`. Any of them may vanish in a macOS update; every caller handles the nil path.
+- TCC grants (Accessibility, Screen Recording) are tied to the signing identity. Sign with
+  the shared "Soprano Local Development" identity, or macOS forgets the permissions on every
+  rebuild.
+- Dev (`com.soprano.tab.dev`) and installed (`com.soprano.tab`) apps are separate TCC
+  entries and keep separate state.
+- The keyboard event tap needs Accessibility. Secure Input (password fields) blocks it, so
+  the shortcuts do nothing while a password field has focus.
+- The CLI talks to the running app over CFMessagePort `<bundle id>.cli`, so the dev build's
+  CLI only reaches the dev app and the installed CLI only the installed app.
