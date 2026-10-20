@@ -269,16 +269,16 @@ final class TileView: FlippedView {
     }
 
     private func layoutThumbnailTile() {
-        let iconSide = Self.stripIconSide
-        stripIcon.frame = CGRect(x: titleFrame.minX, y: (titleFrame.midY - iconSide / 2).rounded(), width: iconSide, height: iconSide)
-        stripIcon.layoutLayers()
-        var trailing = titleFrame.maxX
+        // Like a macOS title bar: lamps first, then the app icon and the title.
+        var leading = titleFrame.minX
         if !controls.isEmpty {
-            trailing = layoutLamps(trailing: trailing, centerY: titleFrame.midY) - Self.lampGap
+            leading = layoutLamps(leading: leading, centerY: titleFrame.midY) + Self.lampGap
         }
-        let leading = stripIcon.frame.maxX + 6
+        let iconSide = Self.stripIconSide
+        stripIcon.frame = CGRect(x: leading, y: (titleFrame.midY - iconSide / 2).rounded(), width: iconSide, height: iconSide)
+        stripIcon.layoutLayers()
         titleLabel.frame = SwitcherText.lineFrame(
-            minX: leading, maxX: trailing, centerY: titleFrame.midY, font: RetroFont.body(12)
+            minX: stripIcon.frame.maxX + 6, maxX: titleFrame.maxX, centerY: titleFrame.midY, font: RetroFont.body(12)
         )
         layoutChipsAtImageBottomLeft()
     }
@@ -289,17 +289,18 @@ final class TileView: FlippedView {
         )
         if !controls.isEmpty {
             // The title strip is too narrow for lamps and a title; they sit over the icon's
-            // top-trailing corner instead.
-            _ = layoutLamps(trailing: imageFrame.maxX, centerY: imageFrame.minY + Self.lampSide / 2)
+            // top-leading corner instead.
+            _ = layoutLamps(leading: imageFrame.minX, centerY: imageFrame.minY + Self.lampSide / 2)
         }
         layoutChipsAtImageBottomLeft()
     }
 
     private func layoutTitleRow() {
-        var trailing = titleFrame.maxX
+        var leading = titleFrame.minX
         if !controls.isEmpty {
-            trailing = layoutLamps(trailing: trailing, centerY: titleFrame.midY) - 8
+            leading = layoutLamps(leading: leading, centerY: titleFrame.midY) + 8
         }
+        var trailing = titleFrame.maxX
         if !chips.isEmpty {
             var x = trailing
             for chip in chips.reversed() {
@@ -312,7 +313,7 @@ final class TileView: FlippedView {
         }
         let nameWidth = min(
             SwitcherText.width(of: appNameLabel.attributedStringValue),
-            max(0, (trailing - titleFrame.minX) / 2)
+            max(0, (trailing - leading) / 2)
         )
         appNameLabel.frame = SwitcherText.lineFrame(
             minX: trailing - nameWidth, maxX: trailing, centerY: titleFrame.midY, font: RetroFont.body(11)
@@ -321,21 +322,20 @@ final class TileView: FlippedView {
             trailing -= nameWidth + 8
         }
         titleLabel.frame = SwitcherText.lineFrame(
-            minX: titleFrame.minX, maxX: trailing, centerY: titleFrame.midY, font: RetroFont.body(13)
+            minX: leading, maxX: trailing, centerY: titleFrame.midY, font: RetroFont.body(13)
         )
     }
 
-    /// Places the shown lamps right-aligned at `trailing`; returns the leading edge of the group.
-    private func layoutLamps(trailing: CGFloat, centerY: CGFloat) -> CGFloat {
+    /// Places the shown lamps left-aligned at `leading`, like macOS window buttons; returns
+    /// the trailing edge of the group.
+    private func layoutLamps(leading: CGFloat, centerY: CGFloat) -> CGFloat {
         let side = Self.lampSide
-        let count = CGFloat(controls.count)
-        var x = trailing - count * side - (count - 1) * Self.lampGap
-        let leading = x
+        var x = leading
         for (control, lamp) in lamps where controls.contains(control) {
             lamp.frame = CGRect(x: x, y: (centerY - side / 2).rounded(), width: side, height: side)
             x += side + Self.lampGap
         }
-        return leading
+        return x - Self.lampGap
     }
 
     /// Badges in a row at the image's bottom-left; chips that do not fit are hidden.

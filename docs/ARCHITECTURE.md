@@ -662,7 +662,8 @@ round chrome, `RetroStripeView`, `RetroRuleView`, `RetroButton`. Appearance is f
   aspect-fit (the app icon at half the area's height when there is no thumbnail).
   Hovered: `bgOverlay`. Selected: `bgSelectedStrong` and a 2 pt `accent` frame inside the
   tile. Window controls on the hovered tile: lamps (10 pt, 6 apart) at the title strip's
-  trailing end — close `danger`, minimize `yellow`, fullscreen `success`; a windowless
+  leading edge like macOS window buttons, before the strip icon (app icons style: the
+  icon's top-leading corner) — close `danger`, minimize `yellow`, fullscreen `success`; a windowless
   app's tile shows one quit lamp (`danger`) instead. Badges at the
   image's bottom-left: chips in display 11 (`textMuted` on `bgBase` 0.85 with a
   `borderSubtle` hairline): "min", "hidden", "full", the Space label. Windowless apps:

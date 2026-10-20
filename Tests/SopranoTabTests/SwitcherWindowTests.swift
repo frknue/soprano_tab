@@ -51,9 +51,10 @@ struct SwitcherWindowTests {
         window.update(model(tiles: threeTiles(), selectedIndex: 0, hoveredIndex: 2))
         #expect(window.tileViews.map(\.controls) == [[], [], [.quit]])
 
-        // The lone quit lamp ends the title strip (tile-local (6, 4, w − 12, 18), flipped).
+        // The lone quit lamp starts the title strip (tile-local (6, 4, w − 12, 18), flipped),
+        // like macOS window buttons.
         let windowless = window.tileViews[2]
-        let lampCenter = CGPoint(x: windowless.bounds.maxX - 6 - TileView.lampSide / 2, y: 4 + 18 / 2)
+        let lampCenter = CGPoint(x: 6 + TileView.lampSide / 2, y: 4 + 18 / 2)
         #expect(windowless.control(at: lampCenter) == .quit)
     }
 
