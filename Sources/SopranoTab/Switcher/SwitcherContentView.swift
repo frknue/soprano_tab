@@ -52,18 +52,21 @@ final class SwitcherContentView: FlippedView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         setFrameSize(layout.panelSize)
-        layer?.backgroundColor = colors.bgBase.withAlphaComponent(0.97).cgColor
-        layer?.borderColor = colors.borderStrong.cgColor
-        layer?.borderWidth = Retro.hairline
-        layer?.cornerRadius = Retro.cornerRadius
+        appearance = model.theme.appearance.nsAppearance
+        // The switcher sits on `raised` so it separates from same-coloured windows behind it.
+        layer?.backgroundColor = colors.raised.cgColor
+        layer?.borderColor = colors.borderSubtle.cgColor
+        layer?.borderWidth = Chrome.hairline
+        layer?.cornerRadius = Chrome.Radius.panel
+        layer?.masksToBounds = true
 
         header.frame = layout.headerFrame
-        header.configure(heading: model.heading, hints: model.hints, colors: colors)
+        header.configure(heading: model.heading, hints: model.hints, theme: model.theme)
 
         if let search = model.search, let frame = layout.searchFieldFrame {
             searchStrip.isHidden = false
             searchStrip.frame = frame
-            searchStrip.configure(state: search, focused: searchFocused, colors: colors)
+            searchStrip.configure(state: search, focused: searchFocused, theme: model.theme)
         } else {
             searchStrip.isHidden = true
         }
@@ -76,17 +79,14 @@ final class SwitcherContentView: FlippedView {
         applyTiles(model, scale: scale)
 
         if model.tiles.isEmpty {
-            let font = RetroFont.display(22)
+            let font = ChromeFont.empty
+            let margin = TileLayout.selectionRingMargin
+            let area = layout.contentFrame.insetBy(dx: margin, dy: margin)
             emptyLabel.isHidden = false
-            emptyLabel.attributedStringValue = RetroText.display(
-                model.emptyText ?? "", color: colors.textMuted, size: 22, alignment: .center
+            emptyLabel.attributedStringValue = SwitcherText.plain(
+                model.emptyText ?? "", font: font, color: colors.textMuted, alignment: .center
             )
-            emptyLabel.frame = SwitcherText.lineFrame(
-                minX: layout.contentFrame.minX,
-                maxX: layout.contentFrame.maxX,
-                centerY: layout.contentFrame.midY,
-                font: font
-            )
+            emptyLabel.frame = SwitcherText.lineFrame(minX: area.minX, maxX: area.maxX, centerY: area.midY, font: font)
         } else {
             emptyLabel.isHidden = true
         }
@@ -129,7 +129,8 @@ final class SwitcherContentView: FlippedView {
         guard let selected = model.selectedIndex, model.layout.tileFrames.indices.contains(selected) else {
             return
         }
-        let frame = model.layout.tileFrames[selected]
+        let margin = TileLayout.selectionRingMargin
+        let frame = model.layout.tileFrames[selected].insetBy(dx: -margin, dy: -margin)
         let visible = scrollView.contentView.bounds
         guard frame.minY < visible.minY || frame.maxY > visible.maxY else { return }
         // Keep the selected row whole in view, moving as little as possible.
@@ -140,17 +141,23 @@ final class SwitcherContentView: FlippedView {
     }
 
     /// Renders the panel's layer tree into `context` with its top-left corner at `origin`
-    /// (`context` uses a bottom-left origin). Works for a panel that was never on screen:
-    /// `cacheDisplay` makes AppKit build and draw every view's layer, then Core Animation
-    /// renders the tree (layer fills, borders, lamps and thumbnail layers included).
-    func render(in context: CGContext, at origin: CGPoint) {
+    /// (`context` uses a bottom-left origin), with the e3 shadow and contact ring of the
+    /// model's theme. Works for a panel that was never on screen: `cacheDisplay` makes
+    /// AppKit build and draw every view's layer, then Core Animation renders the tree.
+    func render(in context: CGContext, at origin: CGPoint, shadow: ThemeShadow) {
         layoutSubtreeIfNeeded()
         if let rep = bitmapImageRepForCachingDisplay(in: bounds) {
             cacheDisplay(in: bounds, to: rep)
         }
         guard let layer else { return }
+        let rect = CGRect(origin: origin, size: bounds.size)
+        let radius = Chrome.Radius.panel
         context.saveGState()
-        context.setShadow(offset: CGSize(width: 0, height: -10), blur: 30, color: NSColor.black.withAlphaComponent(0.55).cgColor)
+        context.setShadow(
+            offset: CGSize(width: 0, height: -shadow.offsetY),
+            blur: shadow.blur,
+            color: shadow.color.withAlphaComponent(CGFloat(shadow.opacity)).cgColor
+        )
         context.beginTransparencyLayer(auxiliaryInfo: nil)
         context.translateBy(x: origin.x, y: origin.y)
         if layer.isGeometryFlipped {
@@ -160,31 +167,39 @@ final class SwitcherContentView: FlippedView {
         layer.render(in: context)
         context.endTransparencyLayer()
         context.restoreGState()
+
+        context.saveGState()
+        context.setStrokeColor(shadow.ring.cgColor)
+        context.setLineWidth(1)
+        context.addPath(CGPath(
+            roundedRect: rect.insetBy(dx: -0.5, dy: -0.5),
+            cornerWidth: radius + 0.5, cornerHeight: radius + 0.5, transform: nil
+        ))
+        context.strokePath()
+        context.restoreGState()
     }
 }
 
 // MARK: - Header
 
-/// The header strip: a small slanted stripe, the heading, the key hints right-aligned
-/// (truncated first), and a `borderSubtle` hairline under it.
+/// The header strip: what the list shows in SF Pro 13 Medium ink, its count muted beside
+/// it, and the key hints right-aligned as keycap + word. When the strip is too narrow,
+/// whole hints drop from the end; the heading truncates only when no hint is left.
 final class SwitcherHeaderView: FlippedView {
-    static let stripeSize = CGSize(width: 26, height: 10)
+    static let countGap: CGFloat = 4
+    static let hintsLeadingGap: CGFloat = 16
+    static let hintGap: CGFloat = 12
 
-    private let stripe = RetroStripeView(layout: .slanted)
     private let headingLabel = SwitcherText.label()
-    private let hintsLabel = SwitcherText.label()
-    private let rule = RetroRuleView(axis: .horizontal, style: .single)
+    private let countLabel = SwitcherText.label()
+    private var hintViews: [KeyHintView] = []
+    /// How many hints fit, counted from the start (for tests).
+    private(set) var visibleHintCount = 0
 
     init() {
         super.init(frame: .zero)
-        stripe.translatesAutoresizingMaskIntoConstraints = true
-        rule.translatesAutoresizingMaskIntoConstraints = true
-        hintsLabel.alignment = .right
-        hintsLabel.setAccessibilityElement(false)
-        addSubview(stripe)
         addSubview(headingLabel)
-        addSubview(hintsLabel)
-        addSubview(rule)
+        addSubview(countLabel)
     }
 
     @available(*, unavailable)
@@ -192,31 +207,96 @@ final class SwitcherHeaderView: FlippedView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(heading: String, hints: String, colors: ThemeColors) {
-        stripe.colors = colors.stripe
-        rule.color = colors.borderSubtle
-        headingLabel.attributedStringValue = RetroText.display(heading, color: colors.textPrimary)
-        hintsLabel.attributedStringValue = RetroText.display(hints, color: colors.textMuted, alignment: .right)
+    func configure(heading: SwitcherHeading, hints: [KeyHint], theme: AppTheme) {
+        let colors = theme.colors
+        let headingFont = ChromeFont.sans(size: 13, weight: .medium)
+        let countFont = ChromeFont.sans(size: 13, tabular: true)
+        headingLabel.attributedStringValue = SwitcherText.plain(heading.subject, font: headingFont, color: colors.textPrimary)
+        countLabel.attributedStringValue = SwitcherText.plain("· \(heading.count)", font: countFont, color: colors.textMuted)
+        headingLabel.setAccessibilityLabel("\(heading.subject), \(heading.count)")
+        countLabel.setAccessibilityElement(false)
 
-        let bandHeight = bounds.height - Retro.hairline
-        let centerY = bandHeight / 2
-        stripe.frame = CGRect(
-            x: 0,
-            y: (centerY - Self.stripeSize.height / 2).rounded(),
-            width: Self.stripeSize.width,
-            height: Self.stripeSize.height
+        while hintViews.count > hints.count {
+            hintViews.removeLast().removeFromSuperview()
+        }
+        while hintViews.count < hints.count {
+            let view = KeyHintView(theme: theme)
+            addSubview(view)
+            hintViews.append(view)
+        }
+        for (view, hint) in zip(hintViews, hints) {
+            view.configure(hint, theme: theme)
+        }
+
+        let centerY = bounds.height / 2
+        let headingWidth = SwitcherText.width(of: headingLabel.attributedStringValue)
+        let countWidth = SwitcherText.width(of: countLabel.attributedStringValue)
+        let headingBlock = headingWidth + Self.countGap + countWidth
+        let widths = hintViews.map(\.preferredWidth)
+        var count = widths.count
+        while count > 0 {
+            let hintsWidth = widths.prefix(count).reduce(0, +) + Self.hintGap * CGFloat(count - 1)
+            if headingBlock + Self.hintsLeadingGap + hintsWidth <= bounds.width { break }
+            count -= 1
+        }
+        visibleHintCount = count
+
+        // The text cell pads 2 pt on each side; pull the label back so the glyphs start at 0.
+        let subjectMaxX = min(headingWidth, max(0, bounds.width - countWidth - Self.countGap)) - 2
+        headingLabel.frame = SwitcherText.lineFrame(minX: -2, maxX: subjectMaxX + 2, centerY: centerY, font: headingFont)
+        let countMinX = subjectMaxX + Self.countGap - 2
+        countLabel.frame = SwitcherText.lineFrame(
+            minX: countMinX, maxX: min(bounds.width, countMinX + countWidth), centerY: centerY, font: countFont
         )
-        let leading = stripe.frame.maxX + 8
-        let available = max(0, bounds.width - leading)
-        let headingWidth = min(SwitcherText.width(of: headingLabel.attributedStringValue), available)
-        let hintsWidth = hints.isEmpty
-            ? 0
-            : min(SwitcherText.width(of: hintsLabel.attributedStringValue), max(0, available - headingWidth - 16))
-        let font = RetroFont.display(11)
-        headingLabel.frame = SwitcherText.lineFrame(minX: leading, maxX: leading + headingWidth, centerY: centerY, font: font)
-        hintsLabel.frame = SwitcherText.lineFrame(minX: bounds.width - hintsWidth, maxX: bounds.width, centerY: centerY, font: font)
-        hintsLabel.isHidden = hintsWidth <= 0
-        rule.frame = CGRect(x: 0, y: bounds.height - Retro.hairline, width: bounds.width, height: Retro.hairline)
+        var x = bounds.width
+        for (index, view) in hintViews.enumerated().reversed() {
+            view.isHidden = index >= count
+            guard index < count else { continue }
+            x -= view.preferredWidth
+            view.frame = CGRect(
+                x: x, y: (centerY - Chrome.keycapHeightSmall / 2).rounded(),
+                width: view.preferredWidth, height: Chrome.keycapHeightSmall
+            )
+            x -= Self.hintGap
+        }
+    }
+}
+
+/// One header hint: a 16 pt muted keycap and its word in SF Pro 11 muted, 5 apart.
+final class KeyHintView: FlippedView {
+    static let gap: CGFloat = 5
+
+    private let cap: ChromeKeycapView
+    private let word = SwitcherText.label()
+    private(set) var preferredWidth: CGFloat = 0
+
+    init(theme: AppTheme) {
+        cap = ChromeKeycapView(legend: "", theme: theme, style: .small, tone: .muted)
+        super.init(frame: .zero)
+        cap.translatesAutoresizingMaskIntoConstraints = true
+        addSubview(cap)
+        addSubview(word)
+        setAccessibilityElement(false)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func configure(_ hint: KeyHint, theme: AppTheme) {
+        cap.legend = hint.key
+        cap.apply(theme: theme)
+        word.attributedStringValue = SwitcherText.plain(hint.label, font: ChromeFont.meta, color: theme.colors.textMuted)
+        let capWidth = cap.intrinsicContentSize.width
+        let wordWidth = SwitcherText.width(of: word.attributedStringValue) - 4
+        preferredWidth = capWidth + Self.gap + wordWidth
+        let height = Chrome.keycapHeightSmall
+        cap.frame = CGRect(x: 0, y: 0, width: capWidth, height: height)
+        // The label cell sits its glyphs a point low; centre them on the cap's legend.
+        word.frame = SwitcherText.lineFrame(
+            minX: capWidth + Self.gap - 2, maxX: preferredWidth + 2, centerY: height / 2 - 1, font: ChromeFont.meta
+        )
     }
 }
 
@@ -321,7 +401,7 @@ enum SwitcherText {
         }
     }
 
-    /// A title with the search hits in `highlight`.
+    /// A title with the search hits Semibold in `highlight`.
     static func title(
         _ text: String,
         highlights: [NSRange],
@@ -335,9 +415,10 @@ enum SwitcherText {
             attributedString: plain(text, font: font, color: color, alignment: alignment, lineBreakMode: lineBreakMode)
         )
         let length = string.length
+        let matchFont = ChromeFont.sans(size: font.pointSize, weight: .semibold)
         for range in highlights where range.location != NSNotFound && range.location < length {
             let clamped = NSRange(location: range.location, length: min(range.length, length - range.location))
-            string.addAttribute(.foregroundColor, value: highlight, range: clamped)
+            string.addAttributes([.foregroundColor: highlight, .font: matchFont], range: clamped)
         }
         return string
     }

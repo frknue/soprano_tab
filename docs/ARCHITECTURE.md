@@ -4,7 +4,7 @@ Soprano Tab is a window switcher for macOS in the Soprano family: a copy of
 [AltTab](https://alt-tab.app/features) (every window, not just every app; thumbnails,
 app icons or titles; search; preview; window actions from the switcher; up to 9
 shortcuts with their own filters; trackpad swipe; exceptions; command line) drawn in
-Soprano's "Mission Control" chrome. Swift 6 + programmatic AppKit, SPM, macOS 14+,
+Soprano's Folio chrome (Paper light, Ink dark). Swift 6 + programmatic AppKit, SPM, macOS 14+,
 menu-bar app (no Dock icon). Behavior is reimplemented from AltTab's documented
 behavior and defaults; no AltTab source is copied.
 
@@ -28,7 +28,6 @@ The `ld: warning: building for macOS-14.0 …` link warnings are expected.
 | Product | Soprano Tab (`/Applications/Soprano Tab.app`) |
 | Bundle id | `com.soprano.tab`; dev build `com.soprano.tab.dev` (`Soprano Tab Dev.app`) |
 | Targets | `SopranoTabCore` (library), `SopranoTab` (executable), `SopranoTabTests` |
-| SPM resource bundle | `SopranoTab_SopranoTab.bundle` |
 | Settings | `~/.config/soprano-tab/settings.json`; `SOPRANO_TAB_CONFIG` overrides the path |
 | CLI port | CFMessagePort `<bundle id>.cli` |
 | Signing | Soprano's shared "Soprano Local Development" identity, so macOS keeps the Accessibility and Screen Recording grants across rebuilds |
@@ -39,10 +38,10 @@ The `ld: warning: building for macOS-14.0 …` link warnings are expected.
 |---|---|---|
 | `Sources/SopranoTabCore/` | Core | Pure logic, Foundation + CoreGraphics only, no AppKit: models, settings, keys, list building, search, session, layout, input routing, swipe tracking, CLI messages. Everything `public`. |
 | `Sources/SopranoTabCore/Vendored/JSONCText.swift` | — | Copied from Soprano by `scripts/sync-soprano-chrome.sh`. **Never edit.** |
-| `Sources/SopranoTab/Vendored/` | — | Soprano chrome (RetroChrome, Theme, ThemeManager, NSColor+Hex, AppVersion), copied by the sync script. **Never edit.** |
+| `Sources/SopranoTab/Vendored/` | — | Soprano chrome (Chrome, Theme, NSColor+Hex, AppVersion), copied by the sync script, which also copies `scripts/render-app-icon.swift`. **Never edit.** |
 | `Sources/SopranoTab/System/` | System | The live macOS layer: private API bridge, window catalog, thumbnails, window actions, app icons, keyboard and gesture taps. |
 | `Sources/SopranoTab/Switcher/` | Switcher | `SwitcherController` (state, input, actions) and `SwitcherWindow` (panel, tiles, search strip, preview). |
-| `Sources/SopranoTab/App/`, `Shell/` | Shell | `main.swift`, app delegate (composition root), menu bar, login item, settings file/center, theme center, permissions + onboarding window, CLI server/client, resources. |
+| `Sources/SopranoTab/App/`, `Shell/` | Shell | `main.swift`, app delegate (composition root), menu bar, login item, settings file/center, theme center, permissions + onboarding window, CLI server/client. |
 | `Sources/SopranoTab/Fixtures/` | Fixtures | Fake desktop (windows, thumbnails, icons, recorded actions) and the `snapshot` harness. |
 
 ### Contract files
@@ -58,22 +57,22 @@ together with every consumer.
 - `Sources/SopranoTabCore/Geometry.swift` — Quartz ↔ AppKit coordinates, display lookup.
 - `Sources/SopranoTab/System/SystemContracts.swift` — `WindowSource`, `ThumbnailProvider`, `WindowActing`, `AppIconProvider`, `KeyboardEventTap`, `GestureEventTap`, `EventTapError`.
 - `Sources/SopranoTab/System/PrivateAPIs.swift` — dlsym bridge to SkyLight/HIServices (Spaces, cross-Space focus, key window, window capture, AX window ids, remote-token AX elements, PSNs).
-- `Sources/SopranoTab/Switcher/SwitcherContracts.swift` — `TileControl`, `TileBadges`, `TileViewModel`, `SearchFieldState`, `SwitcherViewModel`, `SwitcherPresenting`, `SwitcherEnvironment`.
+- `Sources/SopranoTab/Switcher/SwitcherContracts.swift` — `TileControl`, `SwitcherHeading`, `KeyHint`, `TileViewModel`, `SearchFieldState`, `SwitcherViewModel`, `SwitcherPresenting`, `SwitcherEnvironment`.
 
 ### File ownership
 
 | Owner | Files |
 |---|---|
-| Infra | `Package.swift`, `.gitignore`, `LICENSE`, `Support/Info.plist`, `Support/SopranoTab.entitlements`, `Support/Licenses/`, `scripts/*.sh`, `scripts/render-app-icon.swift`, `Sources/SopranoTab/Resources/`, `Sources/SopranoTab/Vendored/`, `Sources/SopranoTabCore/Vendored/`, `Sources/SopranoTab/App/SopranoResources.swift` |
+| Infra | `Package.swift`, `.gitignore`, `LICENSE`, `Support/Info.plist`, `Support/SopranoTab.entitlements`, `scripts/*.sh`, `scripts/render-app-icon.swift`, `Sources/SopranoTab/Resources/`, `Sources/SopranoTab/Vendored/`, `Sources/SopranoTabCore/Vendored/` |
 | Core settings | `Core/KeyParsing.swift`, `Core/SettingsResolver.swift`, `Core/SettingsTemplate.swift`, `Core/SettingsEditor.swift`; tests `KeyParsingTests`, `SettingsResolverTests`, `SettingsTemplateTests`, `SettingsEditorTests` |
 | Core engine | `Core/WindowListBuilder.swift`, `Core/ExceptionMatcher.swift`, `Core/ScreenChooser.swift`, `Core/SearchMatcher.swift`, `Core/SwitcherSession.swift`, `Core/TileLayoutEngine.swift`, `Core/GridNavigator.swift`; tests `WindowListBuilderTests`, `ExceptionMatcherTests`, `ScreenChooserTests`, `SearchMatcherTests`, `SwitcherSessionTests`, `TileLayoutTests`, `GridNavigatorTests` |
 | Core input | `Core/SwitcherKeyRouter.swift`, `Core/SwipeTracker.swift`; tests `SwitcherKeyRouterTests`, `SwipeTrackerTests` |
 | System catalog | `System/LiveWindowSource.swift`, `System/SpaceCatalog.swift`, `System/AXHelpers.swift`, `System/FocusOrder.swift`; tests `SpaceCatalogTests`, `FocusOrderTests` |
 | System actions | `System/LiveWindowActions.swift`, `System/LiveThumbnailProvider.swift`, `System/LiveAppIconProvider.swift`; tests `ThumbnailScalingTests` |
 | System input | `System/HotkeyMonitor.swift`, `System/GestureMonitor.swift`, `System/KeyEventConversion.swift`; tests `KeyEventConversionTests` |
-| Switcher views | `Switcher/SwitcherWindow.swift`, `Switcher/SwitcherPanel.swift`, `Switcher/SwitcherContentView.swift`, `Switcher/TileView.swift`, `Switcher/SearchStripView.swift`, `Switcher/PreviewOverlay.swift`; tests `SwitcherWindowTests` |
+| Switcher views | `Switcher/SwitcherWindow.swift`, `Switcher/SwitcherPanel.swift`, `Switcher/SwitcherContentView.swift`, `Switcher/TileView.swift`, `Switcher/SearchStripView.swift`, `Switcher/PreviewOverlay.swift`; tests `SwitcherWindowTests`, `SwitcherHeaderTests` |
 | Switcher controller | `Switcher/SwitcherController.swift`, `Switcher/SwitcherModelBuilder.swift`; tests `SwitcherControllerTests`, `SwitcherModelBuilderTests`, `SwitcherTestSupport` (a `RecordingPresenter`) |
-| App shell | `main.swift`, `App/AppDelegate.swift`, `App/MenuBarController.swift`, `App/LoginItem.swift`, `App/CLIServer.swift`, `App/CLIClient.swift`, `Shell/SettingsFile.swift`, `Shell/SettingsCenter.swift`, `Shell/ThemeCenter.swift`, `Shell/Permissions.swift`, `Shell/PermissionsWindowController.swift`; tests `SettingsCenterTests`, `CLIRoundTripTests`, `PermissionsWindowTests` |
+| App shell | `main.swift`, `App/AppDelegate.swift`, `App/MenuBarController.swift`, `App/LoginItem.swift`, `App/CLIServer.swift`, `App/CLIClient.swift`, `Shell/SettingsFile.swift`, `Shell/SettingsCenter.swift`, `Shell/ThemeCenter.swift`, `Shell/Permissions.swift`, `Shell/PermissionsWindowController.swift`, `Core/SopranoThemeFile.swift`; tests `SettingsCenterTests`, `ThemeCenterTests`, `SopranoThemeFileTests`, `CLIRoundTripTests`, `PermissionsWindowTests` |
 | Fixtures | `Fixtures/FixtureWindowSource.swift`, `Fixtures/FixtureScenarios.swift`, `Fixtures/FixtureThumbnails.swift`, `Fixtures/FixtureIcons.swift`, `Fixtures/RecordingWindowActions.swift`, `Fixtures/SnapshotCommand.swift`; tests `FixtureScenarioTests`, `SnapshotCommandTests` |
 
 (`Core/` = `Sources/SopranoTabCore/`, `System/` etc. = `Sources/SopranoTab/…`, tests in
@@ -136,7 +135,7 @@ settings.json (every key optional; spellings are the `rawValue`s in `Settings.sw
 
 ```jsonc
 {
-  "theme": "soprano",                 // "soprano" (follow Soprano) or a Soprano theme id
+  "theme": "soprano",                 // "soprano" (follow Soprano's theme + appearance), "folio" (follow macOS), or a Soprano theme id
   "shortcuts": [                      // 1–9; present → replaces the defaults
     { "hold": "option", "key": "tab" },                       // shortcut 1
     { "hold": "option", "key": "keyAboveTab", "apps": "active" } // shortcut 2
@@ -289,6 +288,9 @@ keeps the selected item when it still matches, else selects 0.
 
 ```swift
 extension TileLayout {
+    public static let selectionRingGap: CGFloat     // 3
+    public static let selectionRingWidth: CGFloat   // 2
+    public static let selectionRingMargin: CGFloat  // gap + width
     public static func compute(_ input: TileLayoutInput) -> TileLayout
 }
 public enum GridNavigator {
@@ -300,16 +302,20 @@ public enum GridNavigator {
 ```
 
 Metrics (points, every frame integral):
-- Panel: at most 90% of the screen width and 80% of its height; padding 16 on every
-  side; header strip 24 high at the top of the padded area; search strip 30 high, 8
-  below the header, when `showsSearchField`; the content area starts 8 below the last
-  strip. Minimum panel width 360. Tile spacing 8 both ways.
+- Panel: at most 90% of the screen width and 80% of its height; padding 12 on top and
+  16 on the sides and bottom; header strip 28 high at the top of the padded area; search
+  strip 30 high, 8 below the header, when `showsSearchField`; the tile area starts 8
+  below the last strip. Minimum panel width 360. Tile spacing 8 both ways.
+- Selection ring margin: `contentFrame` (the scroll view) reaches
+  `TileLayout.selectionRingMargin` (5 = ring gap 3 + ring width 2) past the tile area on
+  every side, into the panel padding; `contentSize` includes it and `tileFrames` are
+  offset by it, so a selected edge tile's ring is never clipped.
 - **thumbnails**: rows per screen small 6, medium 4, large 3. Tile height = (max content
-  height − (rows − 1) × 8) / rows. Tile-local title frame (6, 4, w − 12, 18); image frame
-  (6, 26, w − 12, h − 32). Tile width = image height × aspect + 12, aspect = item width /
-  height clamped to 0.625…2.0 (16:10 for `.zero`), at least 140, at most the max content
-  width. Rows fill left to right greedily; each row is centered in the content width
-  (= widest row).
+  height − (rows − 1) × 8) / rows, at least 29. Tile-local title strip (6, 0, w − 12, 22);
+  image frame (6, 22, w − 12, h − 28). Tile width = image height × aspect + 12, aspect =
+  item width / height clamped to 0.625…2.0 (16:10 for `.zero`), at least 140, at most the
+  max content width. Rows fill left to right greedily; each row is centered in the
+  content width (= widest row).
 - **appIcons**: icon side small 64, medium 96, large 128. Tile = icon + 24 wide,
   8 + icon + 6 + 18 + 8 high; image frame (12, 8, icon, icon); title frame
   (4, 8 + icon + 6, w − 8, 18). Rows packed and centered like thumbnails.
@@ -519,7 +525,7 @@ Controller behavior:
 - **Close** = `presenter.dismiss(animated: appearance.fadeOut)`, hide the preview,
   `router.reset()`, cancel a pending present, session nil.
 - Pointer: hover sets `hoveredIndex` (and selects when `mouse.hoverSelects`); click
-  selects and focuses; a control lamp runs close/minimize/fullscreen/quit on that tile's item.
+  selects and focuses; a window control runs close/minimize/fullscreen/quit on that tile's item.
 - Search: `onQueryChange` / `searchTextDidChange` → `session.setQuery`, relayout, redraw.
 - Preview (`previewSelectedWindow` per shortcut): on every selection change,
   `presenter.showPreview(image, frame: item.frame, fadeIn: appearance.previewFadeIn)`
@@ -532,12 +538,14 @@ Controller behavior:
 - Gesture: `activate` opens the `SopranoTabSettings.gestureIndex` filters at once (no
   delay), `step` moves and calls `environment.haptic()` when `gesture.hapticFeedback`,
   `finish` focuses and closes.
-- Model text: heading "all windows" / the active app's name / "other apps" / "under the
-  cursor" / the app under the cursor's name, "search" while searching, followed by
-  " · <count>"; hints from the bound keys, e.g. "⇥ next  ⇧ back  ↩ open  w close  m min
-  q quit  s search" ("s search" only with `searchHint`); empty text "no windows" or
-  "no matches"; titles per `appearance.titles` ("App - Title" for both); badges per
-  `statusIcons` / `spaceLabels` ("all" for every Space, else the first Space index).
+- Model text: `SwitcherHeading` subject "All windows" / the active app's name / "Other
+  apps" / "Under the cursor" / the app under the cursor's name, "Search" while searching,
+  plus the count; hints are `[KeyHint]`, one keycap legend per bound key (`KeySpec.symbol`,
+  K1: `⇥`, `⇧`, `↩`, `esc`, uppercase letters) and its word: next, back, open, close,
+  min, quit, search ("search" only with `searchHint`); empty text "No windows" or
+  "No matches"; titles per `appearance.titles` ("App - Title" for both); chips per
+  `statusIcons` / `spaceLabels`: "Minimized", "Hidden", "Full screen", then "All Spaces"
+  or "Space <first index>".
 
 ## Shell
 
@@ -560,14 +568,28 @@ Controller behavior:
 - `SettingsFile` / `SettingsCenter`: adapted from Soprano Git's `SettingsFile.swift` and
   `AppEnvironment.swift` — path from `SOPRANO_TAB_CONFIG` or the default, created from
   `SettingsTemplate.text` when missing, debounced file watching, `SettingsResolver` with
-  the vendored theme ids, last good settings kept on parse errors, issues logged with
+  the vendored theme ids (`AppTheme.options`: `folio`, `folio-paper`, `folio-ink`, the
+  seven dark themes), last good settings kept on parse errors, issues logged with
   `OSLog` and exposed (`issues`), `addObserver`. `write(_ value: Any, at path: [String])`
   edits through `SettingsEditor`. Tests inject the file URL.
-- `ThemeCenter`: adapted from Soprano Git — `"soprano"` follows
-  `~/.config/soprano/settings.json`'s `theme` live; `theme(forOverride:)` resolves a
-  shortcut's override id.
-- `MenuBarController`: an `NSStatusItem` with a programmatic template icon (outlined or
-  filled: two offset squares, the front one holding a ⇥ notch), removed while
+- `ThemeCenter`: adapted from Soprano Git. `"soprano"` (the default) follows the `theme`
+  and `appearance` keys of `~/.config/soprano/settings.json` live (read by the Core
+  `SopranoThemeFile`; missing or unknown values give `folio` / `system`): Soprano's
+  `folio` becomes Folio Paper or Folio Ink from its appearance, `system` meaning macOS.
+  Tab's own `folio` follows `NSApp.effectiveAppearance` (KVO-observed); `folio-paper`,
+  `folio-ink` and the dark themes are pinned; unknown ids resolve like `folio`
+  (`AppTheme.theme(for:appearance:)`). Observers fire when a resolved palette changes,
+  system flips included. `theme(forOverride:)` resolves a shortcut's override id the same
+  way. `NSApp.appearance` follows the global theme, the same rule as Soprano and Soprano
+  Git: nil while it follows macOS (`folio`, an unknown id, or `soprano` on Soprano's
+  `folio` + `system`), else `theme.appearance.nsAppearance`, so the status-item menu and
+  any sheet or popup match pinned and third-party themes. The switcher panel, the preview
+  and the permissions window also take their theme's appearance. Tests inject both
+  settings URLs, the system appearance and the `NSApp.appearance` setter
+  (`start(watching: false)`).
+- `MenuBarController`: an `NSStatusItem` with the Folio 16 pt template glyph drawn in
+  code (an open back sheet, a front sheet with a → in it, 1.5 pt round strokes; filled
+  fills the front sheet and knocks the arrow out), removed while
   `menuBarIcon == .hidden`. Menu: "Show Switcher" (shortcut 1 via `controller.show`),
   "Open settings.json…" (⌘,), a disabled "settings.json: N warnings" line while issues
   exist, "Permissions…", "Launch at Login" (checkmark; toggling writes
@@ -580,12 +602,15 @@ Controller behavior:
   (`x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility` /
   `?Privacy_ScreenCapture`).
 - `PermissionsWindowController(status: @escaping @MainActor () -> PermissionStatus)` with
-  `PermissionStatus { accessibility: Bool; screenRecording: Bool }`: a Mission Control
-  window, heading "permissions", one row per permission (lamp lit `success` when granted,
-  `danger` when missing; name; what it enables — Accessibility: "switch and focus
-  windows, required", Screen Recording: "thumbnails and previews; without it Soprano Tab
-  shows app icons"; an "Open System Settings" `RetroButton`), polling every second while
-  visible; `renderImage() -> CGImage?` renders offscreen for the harness.
+  `PermissionStatus { accessibility: Bool; screenRecording: Bool }`: a titled window on
+  `bgBase` with the theme's appearance, the New York headline "Permissions", then one row
+  per permission split by a `borderSubtle` hairline: a `ChromeStatusMark` (success dot when
+  granted, danger diamond when missing), the name in SF Pro 13 ("Accessibility", "Screen
+  recording"), what it enables in SF Pro 12 muted ("Switch and focus windows. Required." /
+  "Thumbnails and previews. Without it, Soprano Tab shows app icons."), and an "Open
+  System Settings" `ChromeButton` (`.ink` while missing, `.standard` once granted);
+  polling every second while visible; `renderImage() -> CGImage?` renders offscreen for
+  the harness.
 - `CLIServer(controller:source:actions:)`: a local `CFMessagePort` named `<bundle id>.cli`
   on the main run loop; JSON `CLIRequest` → `CLIResponse`. `list` returns every
   non-windowless window by `lastFocusOrder`; `focus` / `focusLastFocusOrder` focus through
@@ -606,7 +631,9 @@ enum FixtureScenario: String, CaseIterable { case standard, crowded, windowless,
     var snapshot: WindowSnapshot { get set }          // setting it fires onChange
     func mutate(_ change: (inout WindowSnapshot) -> Void)
 }
-@MainActor final class FixtureThumbnails: ThumbnailProvider { init(source: FixtureWindowSource) }
+@MainActor final class FixtureThumbnails: ThumbnailProvider {
+    init(source: FixtureWindowSource, colors: ThemeColors = AppTheme.folioPaper.colors)
+}
 @MainActor final class FixtureIcons: AppIconProvider { init() }
 enum WindowActionRecord: Equatable {
     case focus(ItemID), close(ItemID), toggleMinimize(ItemID), toggleFullscreen(ItemID)
@@ -625,8 +652,9 @@ Spaces), windowless Notes and Music; focus on a Soprano window. `crowded` — 40
 over 12 apps. `windowless` — only windowless apps plus a windowless Finder (hidden by the
 default exception). `empty` — no windows. `multiScreen` — the laptop screen plus a
 2560 × 1440 display to its right, windows on both. Thumbnails are deterministic drawings
-of a window (title bar in the app's color with three dots and the title, content blocks
-seeded by the window id); icons are square tiles in the app's color with its initial.
+of a window in the theme's mode (a `raised` title bar with the macOS traffic lights and
+the title, content blocks seeded by the window id, the app's colour in a few of them);
+icons are square tiles in the app's color with its initial.
 
 `SopranoTab snapshot --out <png> [--scenario standard|crowded|windowless|empty|multiScreen]
 [--screen 1512x982] [--style thumbnails|appIcons|titles] [--size small|medium|large|auto]
@@ -641,43 +669,62 @@ again), `shift+tab`, `shift` (the previous modifier alone), `release` (hold modi
 up), `left right up down return escape`, single letters — applies `--search` through
 `searchTextDidChange` (after `s` or on its own, which begins search first), hovers
 `--hover`, and writes `presenter.renderSnapshot(screen:backdrop:)` over a backdrop that
-draws the fixture desktop. `--report` writes JSON: active, selected index, item titles,
+draws the fixture desktop in the theme's mode (Folio's `--desktop-wallpaper`, menu bar and
+`--shadow-window`). Themes resolve against a light system appearance and never read
+Soprano's settings: the default (`soprano`), `folio` and `folio-paper` render Folio Paper;
+`--theme folio-ink` renders Ink; the dark themes render dark. `--report` writes JSON: active, selected index, item titles,
 query, and the action log. `--onboarding` renders the permissions window instead. Agents
 verify UI with it and `read` the PNG; they never launch the GUI.
 
 ## Visual design
 
-Vendored chrome only: `ThemeColors` tokens (plus `bgSelected`, `bgSelectedStrong`,
-`railMuted`), `RetroFont.display(11 | 22)` for labels (small caps; never uppercase strings
-by hand), `RetroFont.body(size)` for titles and text, square corners, `RetroLamp` the only
-round chrome, `RetroStripeView`, `RetroRuleView`, `RetroButton`. Appearance is forced to
-`.darkAqua` (every Soprano theme is dark).
+Folio (Soprano `docs/design/2026-10-21-calm-family/b/`, direction.md §11 Tab, `tab.html`),
+from the vendored `Chrome.swift` and `Theme.swift` only: `ThemeColors` slots and derived
+tokens (`raised`, `hover`, `selection`, `focusMark`, `pencilTick`, `matchOnSelection`,
+`fieldFocusEdge`, `keycapFill/Edge`, `shadowE2/E3`), `ChromeFont` (SF Pro; New York only
+for the empty state and the permissions headline), `Chrome` metrics and radii,
+`ChromeKeycapView`, `ChromeFieldView`, `ChromeStatusMark`, `ChromeButton`,
+`ChromeRuleView`. The accent marks only the selection (ring, tick, preview frame), the
+caret and search hits on the selected tile: each marks where your keys go. Every window's
+appearance comes from its theme.
 
-- **Panel**: `bgBase` at 0.97 alpha, 1 pt `borderStrong` outline, window shadow, no
-  corner radius. Header: a small slanted `RetroStripeView`, the heading in display 11
-  `textPrimary`, the key hints right-aligned in display 11 `textMuted` (truncated first);
-  a `borderSubtle` hairline under it.
-- **Thumbnail tile**: `bgPanel` with a 1 pt `borderSubtle` frame; title strip with the
-  16 pt app icon and the title in body 12; image area `bgRaised` with the thumbnail
-  aspect-fit (the app icon at half the area's height when there is no thumbnail).
-  Hovered: `bgOverlay`. Selected: `bgSelectedStrong` and a 2 pt `accent` frame inside the
-  tile. Window controls on the hovered tile: lamps (10 pt, 6 apart) at the title strip's
-  leading edge like macOS window buttons, before the strip icon (app icons style: the
-  icon's top-leading corner) — close `danger`, minimize `yellow`, fullscreen `success`; a windowless
-  app's tile shows one quit lamp (`danger`) instead. Badges at the
-  image's bottom-left: chips in display 11 (`textMuted` on `bgBase` 0.85 with a
-  `borderSubtle` hairline): "min", "hidden", "full", the Space label. Windowless apps:
-  icon at 0.6 alpha, muted title.
-- **App icon tile**: no frame until hovered/selected (same fills, 2 pt `accent` frame when
-  selected); the real app icon; title centered below in body 11.
-- **Title row**: Soprano list row — selected `bgSelectedStrong` + 2 pt `accent` leading
-  rail, hover `bgOverlay`; icon, title in body 13, app name right-aligned in body 11
-  `textMuted`, badges after it.
-- **Search strip**: `bgRaised`, 1 pt `borderSubtle` (`accent` while focused), body 13
-  text, placeholder "search windows"; matched characters in `accent`.
-- **Empty**: display 22 `textMuted`, centered.
-- **Preview**: the window image at the window's frame, 2 pt `accent` frame, below the
-  panel; 0.12 s fade-in when `previewFadeIn`. Panel fade-out 0.15 s when `fadeOut`.
+- **Panel**: `raised`, 1 pt `borderSubtle`, radius 12, e3 shadow (the system window
+  shadow on screen; the offscreen render draws `shadowE3` and its contact ring). Header
+  (28 pt, no rule): the subject in SF Pro 13 Medium ink, "· N" in SF Pro 13 muted
+  tabular 4 pt after it; right-aligned hints 12 pt apart, each a 16 pt muted
+  `ChromeKeycapView` (K1 legend) plus its word in SF Pro 11 muted, 5 pt apart. Hints that
+  do not fit (16 pt after the heading) drop whole from the end.
+- **Thumbnail tile**: `bgPanel`, radius 8, no border. Title strip 22 pt: the 16 pt app
+  icon (radius 4), 6 pt, the title in SF Pro 12 `textMuted`. Hovered: `hover` fill and an
+  ink title. Selected: a 2 pt `focusMark` ring 3 pt outside the tile (radius 13, inside
+  the layout's ring margin), ink Medium title, no fill change. Image well: `raised`,
+  radius 4, clipping the aspect-fit thumbnail (the app icon at half the well's height
+  when there is none). Windowless apps: muted title, well content at 0.6.
+- **Window controls** on the hovered tile: 12 pt circles 6 apart in the real macOS
+  traffic-light colours (`TrafficLight`: close #ff5f57, minimize #febc2e, full screen
+  #28c840, quit = close; 0.5 pt edge black 12 % Paper / 30 % dark) on an opaque corner
+  chip at the image's top-left (`LampChipView`: `raised`, padding 8 × 6, only the
+  bottom-right corner rounded 6, `shadowE2`), so the title keeps its full width. A
+  windowless app's tile shows the quit control alone.
+- **Chips** at the image's bottom-left, inset 4, 4 apart: 16 pt, padding 5, radius 4,
+  `bgBase` at 90 %, SF Pro 11 Medium ink: "Minimized", "Hidden", "Full screen", "Space N"
+  / "All Spaces". Chips that do not fit are hidden.
+- **App icon tile**: the thumbnail tile's fill, ring and hover; the real app icon; the
+  title centered below in SF Pro 12; the window-control chip over the icon's top-left.
+- **Title row**: the list-row idiom through the vendored `ChromeSelectionPill`
+  (`ChromeRowBackgroundView`, inset 0) — hover `.hover`, selected `.selected`: a
+  `selection` pill (radius 6) with a 2 × 14 `pencilTick` 4 pt in; icon, title in SF Pro 13 ink, app name
+  right-aligned in SF Pro 11 muted, then `.chip`-style chips (18 pt, `bgOverlay`, muted);
+  window controls inline at the leading edge.
+- **Search strip** (30 pt): a `ChromeFieldView` (`raised`, `borderStrong` edge, radius 6,
+  `fieldFocusEdge` while focused, never accent), a 13 pt muted magnifier 8 pt in, the
+  field in SF Pro 12 with the accent caret; placeholder "Search windows". Search hits are
+  Semibold ink, `matchOnSelection` on the selected tile.
+- **Empty**: New York Italic 17 `textMuted`, centered ("No windows", "No matches").
+- **Preview**: the window image at the window's frame with a 2 pt `focusMark` (accent)
+  frame, below the panel. The frame is a keyboard-focus mark: it outlines the window that
+  `↩` (or releasing the hold modifier) focuses, like the tile ring in the panel; 120 ms fade-in when `previewFadeIn`. Panel fade-out 0.15 s when
+  `fadeOut`. Under Reduce Motion both are instant.
 - Panel windows: borderless, non-activating `NSPanel`, level popUpMenu, collection
   behavior `[.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]`, never
   hides on deactivate; becomes key only while search has focus. Tiles expose
@@ -698,4 +745,4 @@ precedence, transitions, invariants), not wiring.
 Soprano family conventions replace these: the preferences window (settings.json, live
 reloaded, opened from the menu), Sparkle updates and crash reports (install with
 `scripts/install.sh`), the Pro license, 21 UI languages (the family's UI is English),
-light/system themes (Soprano themes, all dark).
+AltTab's own light/dark/system themes (Soprano's themes: Folio follows macOS).

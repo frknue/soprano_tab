@@ -263,7 +263,6 @@ enum SnapshotCommand {
         let app = NSApplication.shared
         // No Dock icon, no menu bar, never activated: nothing appears on the user's screen.
         app.setActivationPolicy(.prohibited)
-        app.appearance = NSAppearance(named: .darkAqua)
         do {
             let result = try render(options)
             try writePNG(result.image, to: options.out)
@@ -281,16 +280,20 @@ enum SnapshotCommand {
 
     /// The testable core: the rendered image (`screen.frame` size × scale) and the report.
     static func render(_ options: Options) throws -> (image: CGImage, report: SnapshotReport) {
-        _ = RetroFont.registerBundledFont()
         let settings = try resolveSettings(options)
-        let themeID = settings.theme
+        let theme = harnessTheme(settings.theme)
+        // Popovers and text the theme does not draw follow the app's appearance; restore it
+        // afterwards so callers in the same process (tests) keep their own.
+        let previousAppearance = NSApplication.shared.appearance
+        NSApplication.shared.appearance = theme.appearance.nsAppearance
+        defer { NSApplication.shared.appearance = previousAppearance }
 
         if options.onboarding {
             let accessibility = options.accessibilityGranted
             let screenRecording = options.screenRecordingGranted
             let controller = PermissionsWindowController(
                 status: { PermissionStatus(accessibility: accessibility, screenRecording: screenRecording) },
-                theme: AppTheme.theme(for: themeID)
+                theme: theme
             )
             guard let image = controller.renderImage() else {
                 throw RenderError(description: "the permissions window did not render")
@@ -304,13 +307,13 @@ enum SnapshotCommand {
         let shortcut = settings.shortcuts[options.shortcutIndex]
 
         let source = FixtureWindowSource(scenario: options.scenario, screenSize: options.screenSize)
-        let thumbnails = FixtureThumbnails(source: source)
+        let thumbnails = FixtureThumbnails(source: source, colors: theme.colors)
         let actions = RecordingWindowActions(source: source)
         SwitcherWindow.offscreen = true
         let presenter = SwitcherWindow()
         let environment = SwitcherEnvironment(
             settings: { settings },
-            theme: { AppTheme.theme(for: $0 ?? themeID) },
+            theme: { $0.map(harnessTheme) ?? theme },
             schedule: { _, work in
                 work()
                 return {}
@@ -351,7 +354,7 @@ enum SnapshotCommand {
         }
 
         guard let screen else { throw RenderError(description: "the scenario has no screen") }
-        guard let backdrop = backdrop(for: screen, snapshot: source.snapshot) else {
+        guard let backdrop = backdrop(for: screen, snapshot: source.snapshot, colors: theme.colors) else {
             throw RenderError(description: "the backdrop did not render")
         }
         let image = presenter.renderSnapshot(screen: screen, backdrop: backdrop) ?? backdrop
@@ -366,10 +369,17 @@ enum SnapshotCommand {
         return (image, report)
     }
 
+    /// The harness resolves themes against a light system appearance, so it never reads
+    /// Soprano's settings or the Mac's mode: the default (`soprano`), `folio` and
+    /// `folio-paper` render Folio Paper; `folio-ink` and the third-party themes are dark.
+    static func harnessTheme(_ id: String) -> AppTheme {
+        AppTheme.theme(for: id == "soprano" ? AppTheme.folioId : id, appearance: .light)
+    }
+
     /// Defaults or `--settings`, then the flag overrides.
     private static func resolveSettings(_ options: Options) throws -> SopranoTabSettings {
         var settings = SopranoTabSettings.defaults
-        let knownThemeIDs = Set(AppTheme.allThemes.map(\.id))
+        let knownThemeIDs = Set(AppTheme.options.map(\.id))
         if let url = options.settings {
             let text: String
             do {
@@ -389,7 +399,7 @@ enum SnapshotCommand {
         }
         if let theme = options.theme {
             guard theme == "soprano" || knownThemeIDs.contains(theme) else {
-                throw RenderError(description: "unknown theme \(theme) (soprano, \(AppTheme.allThemes.map(\.id).joined(separator: ", ")))")
+                throw RenderError(description: "unknown theme \(theme) (soprano, \(AppTheme.options.map(\.id).joined(separator: ", ")))")
             }
             settings.theme = theme
         }
@@ -405,41 +415,16 @@ enum SnapshotCommand {
 
     // MARK: - Backdrop
 
-    /// A deterministic desktop for `screen`: a dark gradient with a faint grid, a menu
-    /// bar strip, and every on-screen window of the visible Spaces drawn back to front.
-    static func backdrop(for screen: ScreenInfo, snapshot: WindowSnapshot) -> CGImage? {
+    /// A deterministic desktop for `screen` in the theme's mode (Folio `--desktop-wallpaper`
+    /// and `--menubar-bg`, tokens.css): a warm vertical wash with two soft glows, a menu
+    /// bar strip, and every on-screen window of the visible Spaces drawn back to front with
+    /// the `--shadow-window` drop shadow.
+    static func backdrop(for screen: ScreenInfo, snapshot: WindowSnapshot, colors: ThemeColors) -> CGImage? {
         let size = screen.frame.size
         guard let context = FixtureDrawing.makeContext(pointSize: size, scale: screen.scale) else { return nil }
-        let colors = [FixturePalette.color(hex: 0x0B0D14).cgColor, FixturePalette.color(hex: 0x1D2133).cgColor] as CFArray
-        if let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) {
-            context.drawLinearGradient(
-                gradient,
-                start: CGPoint(x: 0, y: 0),
-                end: CGPoint(x: size.width, y: size.height),
-                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-            )
-        }
-        context.setStrokeColor(NSColor.white.withAlphaComponent(0.04).cgColor)
-        context.setLineWidth(1)
-        let spacing: CGFloat = 64
-        var x = spacing
-        while x < size.width {
-            context.move(to: CGPoint(x: x + 0.5, y: 0))
-            context.addLine(to: CGPoint(x: x + 0.5, y: size.height))
-            x += spacing
-        }
-        var y = spacing
-        while y < size.height {
-            context.move(to: CGPoint(x: 0, y: y + 0.5))
-            context.addLine(to: CGPoint(x: size.width, y: y + 0.5))
-            y += spacing
-        }
-        context.strokePath()
-
-        let menuBarHeight = screen.visibleFrame.minY - screen.frame.minY
-        if menuBarHeight > 0 {
-            context.setFillColor(NSColor.black.withAlphaComponent(0.45).cgColor)
-            context.fill(CGRect(x: 0, y: 0, width: size.width, height: menuBarHeight))
+        let wallpaper = Wallpaper(appearance: colors.appearance)
+        FixtureDrawing.withFlippedGraphics(context) {
+            wallpaper.draw(in: CGRect(origin: .zero, size: size), context: context)
         }
 
         let visibleSpaces = snapshot.visibleSpaceIDs
@@ -454,20 +439,81 @@ enum SnapshotCommand {
         FixtureDrawing.withFlippedGraphics(context) {
             for window in onScreen {
                 let rect = window.frame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
-                drawWindowShadow(rect, in: context)
-                FixtureThumbnails.draw(window, in: rect, context: context)
+                drawWindowShadow(rect, wallpaper: wallpaper, in: context)
+                FixtureThumbnails.draw(window, in: rect, context: context, colors: colors)
             }
+        }
+        let menuBarHeight = screen.visibleFrame.minY - screen.frame.minY
+        if menuBarHeight > 0 {
+            context.setFillColor(wallpaper.menuBar.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: size.width, height: menuBarHeight))
         }
         return context.makeImage()
     }
 
-    private static func drawWindowShadow(_ rect: CGRect, in context: CGContext) {
+    private static func drawWindowShadow(_ rect: CGRect, wallpaper: Wallpaper, in context: CGContext) {
         context.saveGState()
         // Shadow offsets are in device space (y up): negative drops it below the window.
-        context.setShadow(offset: CGSize(width: 0, height: -10), blur: 30, color: NSColor.black.withAlphaComponent(0.5).cgColor)
-        context.setFillColor(NSColor.black.cgColor)
-        context.fill(rect)
+        context.setShadow(offset: CGSize(width: 0, height: -wallpaper.shadowOffset), blur: wallpaper.shadowBlur, color: wallpaper.shadow.cgColor)
+        context.setFillColor(wallpaper.shadowRing.cgColor)
+        context.fill(rect.insetBy(dx: -1, dy: -1))
         context.restoreGState()
+    }
+
+    /// Folio's desktop per mode.
+    private struct Wallpaper {
+        var linear: [(UInt32, CGFloat)]
+        /// Glows: colour, centre (fractions of the screen), radius (fraction of the width).
+        var glows: [(UInt32, CGPoint, CGFloat)]
+        var menuBar: NSColor
+        var shadow: NSColor
+        var shadowRing: NSColor
+        var shadowOffset: CGFloat
+        var shadowBlur: CGFloat
+
+        init(appearance: AppTheme.Appearance) {
+            if appearance == .light {
+                linear = [(0xE8DFCF, 0), (0xDCCFB9, 0.52), (0xCDBDA3, 1)]
+                glows = [(0xF4EDE0, CGPoint(x: 0.18, y: 0.08), 0.6), (0xC9B79A, CGPoint(x: 0.85, y: 0.95), 0.45)]
+                menuBar = NSColor(srgbRed: 246 / 255, green: 242 / 255, blue: 234 / 255, alpha: 0.82)
+                shadow = NSColor(srgbRed: 43 / 255, green: 38 / 255, blue: 32 / 255, alpha: 0.20)
+                shadowRing = NSColor(srgbRed: 43 / 255, green: 38 / 255, blue: 32 / 255, alpha: 0.10)
+                shadowOffset = 18
+                shadowBlur = 48
+            } else {
+                linear = [(0x24211D, 0), (0x1B1916, 0.55), (0x141210, 1)]
+                glows = [(0x3A332B, CGPoint(x: 0.20, y: 0), 0.55), (0x4A3524, CGPoint(x: 0.88, y: 1), 0.4)]
+                menuBar = NSColor(srgbRed: 29 / 255, green: 27 / 255, blue: 24 / 255, alpha: 0.78)
+                shadow = NSColor.black.withAlphaComponent(0.60)
+                shadowRing = NSColor.black.withAlphaComponent(0.50)
+                shadowOffset = 20
+                shadowBlur = 56
+            }
+        }
+
+        /// Draws into a top-left-origin context.
+        func draw(in rect: CGRect, context: CGContext) {
+            let space = CGColorSpace(name: CGColorSpace.sRGB)
+            let colors = linear.map { FixturePalette.color(hex: $0.0).cgColor } as CFArray
+            if let gradient = CGGradient(colorsSpace: space, colors: colors, locations: linear.map(\.1)) {
+                context.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: rect.midX, y: rect.minY),
+                    end: CGPoint(x: rect.midX, y: rect.maxY),
+                    options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                )
+            }
+            for (hex, center, radius) in glows {
+                let color = FixturePalette.color(hex: hex)
+                let stops = [color.cgColor, color.withAlphaComponent(0).cgColor] as CFArray
+                guard let gradient = CGGradient(colorsSpace: space, colors: stops, locations: [0, 1]) else { continue }
+                let point = CGPoint(x: rect.minX + rect.width * center.x, y: rect.minY + rect.height * center.y)
+                context.drawRadialGradient(
+                    gradient, startCenter: point, startRadius: 0, endCenter: point,
+                    endRadius: rect.width * radius, options: []
+                )
+            }
+        }
     }
 
     // MARK: - Output

@@ -22,11 +22,11 @@ struct PermissionsWindowTests {
     func rendersBothStatesOffscreen() throws {
         let missing = PermissionsWindowController(
             status: { PermissionStatus(accessibility: false, screenRecording: false) },
-            theme: AppTheme.missionControl
+            theme: AppTheme.folioPaper
         )
         let granted = PermissionsWindowController(
             status: { PermissionStatus(accessibility: true, screenRecording: true) },
-            theme: AppTheme.missionControl
+            theme: AppTheme.folioPaper
         )
 
         let missingImage = try #require(missing.renderImage())
@@ -41,10 +41,10 @@ struct PermissionsWindowTests {
         #expect(granted.window?.isVisible == false)
     }
 
-    @Test("a granted permission relights its lamp on the next render")
+    @Test("a granted permission turns its status mark on the next render")
     func renderFollowsStatusChanges() throws {
         let box = StatusBox(PermissionStatus(accessibility: false, screenRecording: true))
-        let controller = PermissionsWindowController(status: { box.status }, theme: AppTheme.missionControl)
+        let controller = PermissionsWindowController(status: { box.status }, theme: AppTheme.folioPaper)
 
         let before = try #require(controller.renderImage())
         box.status.accessibility = true

@@ -60,13 +60,16 @@ struct TileLayoutTests {
             #expect(result.panelSize.width >= 360, "\(context)")
             #expect(result.panelSize.width == result.panelSize.width.rounded(), "\(context)")
             #expect(result.panelSize.height == result.panelSize.height.rounded(), "\(context)")
-            #expect(result.contentFrame.maxY + 16 == result.panelSize.height, "\(context)")
+            let margin = TileLayout.selectionRingMargin
+            #expect(result.contentFrame.maxY - margin + 16 == result.panelSize.height, "\(context)")
             #expect(result.contentFrame.width == result.contentSize.width, "\(context)")
             #expect(result.contentFrame.height <= result.contentSize.height, "\(context)")
-            #expect(result.contentFrame.minY >= result.headerFrame.maxY, "\(context)")
+            #expect(result.contentFrame.minY >= (result.searchFieldFrame ?? result.headerFrame).maxY, "\(context)")
+            #expect(CGRect(origin: .zero, size: result.panelSize).contains(result.contentFrame), "\(context)")
             #expect((result.searchFieldFrame != nil) == search, "\(context)")
 
-            let content = CGRect(origin: .zero, size: result.contentSize)
+            // Tiles keep the ring margin to the content edges, so no ring is clipped.
+            let content = CGRect(origin: .zero, size: result.contentSize).insetBy(dx: margin, dy: margin)
             let misplaced = result.tileFrames.indices.filter { index in
                 let tile = result.tileFrames[index]
                 let bounds = CGRect(origin: .zero, size: tile.size)
@@ -119,10 +122,11 @@ struct TileLayoutTests {
     @Test("overflowing rows scroll: the panel stops growing and the content holds every row")
     func scrolling() {
         let result = layout(.titles, .small, items: Array(repeating: .zero, count: 100))
-        #expect(result.contentFrame.height == 736)
-        #expect(result.contentSize.height == 2800)
+        // 736 pt of rows plus the 5 pt ring margin above and below.
+        #expect(result.contentFrame.height == 746)
+        #expect(result.contentSize.height == 2810)
         #expect(result.panelSize.height == 800)
-        #expect(result.tileFrames.last == CGRect(x: 0, y: 2772, width: 420, height: 28))
+        #expect(result.tileFrames.last == CGRect(x: 5, y: 2777, width: 420, height: 28))
     }
 
     @Test("thumbnail tiles follow the window's aspect within 0.625…2 and at least 140 wide")
@@ -131,31 +135,42 @@ struct TileLayoutTests {
         let sizes = [CGSize(width: 1600, height: 1000), .zero, CGSize(width: 500, height: 1000), CGSize(width: 4000, height: 1000)]
         let large = layout(.thumbnails, .large, items: sizes)
         #expect(large.tileFrames.map(\.size) == [
-            CGSize(width: 344, height: 240), CGSize(width: 344, height: 240),
-            CGSize(width: 142, height: 240), CGSize(width: 428, height: 240),
+            CGSize(width: 351, height: 240), CGSize(width: 351, height: 240),
+            CGSize(width: 144, height: 240), CGSize(width: 436, height: 240),
         ])
-        #expect(large.imageFrames[0] == CGRect(x: 6, y: 26, width: 332, height: 208))
-        #expect(large.titleFrames[0] == CGRect(x: 6, y: 4, width: 332, height: 18))
+        #expect(large.titleFrames[0] == CGRect(x: 6, y: 0, width: 339, height: 22))
+        #expect(large.imageFrames[0] == CGRect(x: 6, y: 22, width: 339, height: 212))
 
         let small = layout(.thumbnails, .small, items: [CGSize(width: 500, height: 1000)])
         #expect(small.tileFrames[0].size == CGSize(width: 140, height: 116))
-        #expect(small.imageFrames[0] == CGRect(x: 6, y: 26, width: 128, height: 84))
+        #expect(small.imageFrames[0] == CGRect(x: 6, y: 22, width: 128, height: 88))
     }
 
     @Test("thumbnail rows fill greedily and each row is centered in the widest row")
     func thumbnailRows() {
         let result = layout(.thumbnails, .large, items: Array(repeating: CGSize(width: 1600, height: 1000), count: 5))
         #expect(result.rows == [0..<2, 2..<4, 4..<5])
-        #expect(result.contentSize == CGSize(width: 696, height: 736))
-        #expect(result.panelSize.width == 728)
-        #expect(result.tileFrames[1] == CGRect(x: 352, y: 0, width: 344, height: 240))
-        #expect(result.tileFrames[4] == CGRect(x: 176, y: 496, width: 344, height: 240))
+        #expect(result.contentSize == CGSize(width: 720, height: 746))
+        #expect(result.panelSize.width == 742)
+        #expect(result.tileFrames[1] == CGRect(x: 364, y: 5, width: 351, height: 240))
+        #expect(result.tileFrames[4] == CGRect(x: 184, y: 501, width: 351, height: 240))
+    }
+
+    @Test("the scroll view reaches 5 pt past the tiles so the selection ring is never clipped")
+    func selectionRingMargin() {
+        #expect(TileLayout.selectionRingMargin == TileLayout.selectionRingGap + TileLayout.selectionRingWidth)
+        let result = layout(.thumbnails, .large, items: Array(repeating: CGSize(width: 1600, height: 1000), count: 5))
+        // Tiles start 16 pt in from the panel edge and 48 pt down; the scroll view 5 pt earlier.
+        #expect(result.contentFrame == CGRect(x: 11, y: 43, width: 720, height: 746))
+        let ring = result.tileFrames[0].insetBy(dx: -5, dy: -5)
+        #expect(CGRect(origin: .zero, size: result.contentSize).contains(ring))
+        #expect(result.contentFrame.minX + result.tileFrames[0].minX == 16)
     }
 
     @Test("app icon tiles wrap the icon with a title below")
     func appIconMetrics() {
         let medium = layout(.appIcons, .medium, items: [.zero])
-        #expect(medium.tileFrames == [CGRect(x: 104, y: 0, width: 120, height: 136)])
+        #expect(medium.tileFrames == [CGRect(x: 109, y: 5, width: 120, height: 136)])
         #expect(medium.imageFrames == [CGRect(x: 12, y: 8, width: 96, height: 96)])
         #expect(medium.titleFrames == [CGRect(x: 4, y: 110, width: 112, height: 18)])
         #expect(medium.panelSize.width == 360)
@@ -166,7 +181,7 @@ struct TileLayoutTests {
     @Test("title rows are one per line, sized from the screen width within 420…1100")
     func titleMetrics() {
         let wide = layout(.titles, .large, screen: CGSize(width: 2000, height: 1200), items: [.zero, .zero])
-        #expect(wide.tileFrames == [CGRect(x: 0, y: 0, width: 1100, height: 40), CGRect(x: 0, y: 40, width: 1100, height: 40)])
+        #expect(wide.tileFrames == [CGRect(x: 5, y: 5, width: 1100, height: 40), CGRect(x: 5, y: 45, width: 1100, height: 40)])
         #expect(wide.rows == [0..<1, 1..<2])
         #expect(wide.imageFrames[0] == CGRect(x: 8, y: 4, width: 32, height: 32))
         #expect(wide.titleFrames[0] == CGRect(x: 48, y: 11, width: 1044, height: 18))
@@ -183,14 +198,14 @@ struct TileLayoutTests {
     @Test("the search strip sits below the header and pushes the content down")
     func searchStrip() {
         let plain = layout(.thumbnails, .large, items: [.zero])
-        #expect(plain.headerFrame == CGRect(x: 16, y: 16, width: 344, height: 24))
+        #expect(plain.headerFrame == CGRect(x: 16, y: 12, width: 351, height: 28))
         #expect(plain.searchFieldFrame == nil)
-        #expect(plain.contentFrame.origin == CGPoint(x: 16, y: 48))
+        #expect(plain.contentFrame.origin == CGPoint(x: 11, y: 43))
 
         let searching = layout(.thumbnails, .large, items: [.zero], search: true)
-        // Shorter tiles are narrower, so the panel falls back to its 360 pt minimum.
-        #expect(searching.searchFieldFrame == CGRect(x: 16, y: 48, width: 328, height: 30))
-        #expect(searching.contentFrame.origin == CGPoint(x: 16, y: 86))
+        // Shorter tiles are narrower: 199 pt of image at 16:10 + 12 = 330.
+        #expect(searching.searchFieldFrame == CGRect(x: 16, y: 48, width: 330, height: 30))
+        #expect(searching.contentFrame.origin == CGPoint(x: 11, y: 81))
         // 800 − 86 − 16 = 698 pt of content: (698 − 16) / 3 = 227.
         #expect(searching.tileFrames[0].height == 227)
     }
@@ -201,7 +216,7 @@ struct TileLayoutTests {
         #expect(result.resolvedSize == .large)
         #expect(result.tileFrames.isEmpty && result.rows.isEmpty)
         #expect(result.panelSize == CGSize(width: 360, height: 144))
-        #expect(result.contentFrame == CGRect(x: 16, y: 48, width: 328, height: 80))
+        #expect(result.contentFrame == CGRect(x: 11, y: 43, width: 338, height: 90))
         #expect(layout(.titles, .small, items: []).resolvedSize == .small)
     }
 }

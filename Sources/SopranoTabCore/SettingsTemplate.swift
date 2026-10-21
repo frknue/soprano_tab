@@ -10,8 +10,10 @@ public enum SettingsTemplate {
     // Soprano Tab settings. JSON with comments; saved changes apply immediately.
     // Every key is optional. Unknown keys and bad values are ignored with a warning.
     {
-      // "soprano" follows the theme of Soprano (~/.config/soprano/settings.json),
-      // or any Soprano theme id.
+      // "soprano" follows Soprano's theme and appearance (~/.config/soprano/settings.json);
+      // "folio" follows macOS (Folio Paper in light mode, Folio Ink in dark mode);
+      // "folio-paper", "folio-ink", or a dark theme: "gruvbox-dark", "catppuccin-mocha",
+      // "dracula", "solarized-dark", "nord", "tokyo-night", "atom-one-dark".
       "theme": "soprano",
 
       // 1 to 9 shortcuts: hold "hold", press "key" to open the switcher and step forward.
@@ -89,9 +91,9 @@ public enum SettingsTemplate {
         "titleTruncation": "end",
         // Close / minimize / fullscreen buttons on the hovered tile, quit for apps without windows.
         "windowControls": true,
-        // Space numbers on tiles.
+        // "Space 2" / "All Spaces" chips on tiles.
         "spaceLabels": false,
-        // Minimized / hidden / fullscreen badges on tiles.
+        // "Minimized" / "Hidden" / "Full screen" chips on tiles.
         "statusIcons": true,
         // A quick tap switches without showing the switcher when shorter than this
         // (\(AppearanceSettings.showDelayRange.lowerBound)–\(AppearanceSettings.showDelayRange.upperBound) ms).

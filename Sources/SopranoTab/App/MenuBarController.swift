@@ -119,52 +119,51 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    /// The 18 pt template icon: two offset squares, the front one holding a ⇥ notch.
-    /// Outlined strokes the front square; filled fills it and cuts the ⇥ out of it.
+    /// The Folio 16 pt template glyph (b/components.css `.tpl` Tab): an open back sheet, a
+    /// front sheet, and a → in it; 1.5 pt strokes with round caps and joins. Outlined
+    /// strokes the front sheet; filled fills it and knocks the arrow out of it.
     static func statusImage(filled: Bool) -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+        // SVG coordinates (top-left origin, 16 × 16 view box).
+        let image = NSImage(size: NSSize(width: 16, height: 16), flipped: true) { _ in
             let lineWidth: CGFloat = 1.5
-            let back = NSRect(x: 1.75, y: 6.25, width: 10, height: 10)
-            let front = NSRect(x: 6.25, y: 1.75, width: 10, height: 10)
             NSColor.black.set()
 
-            let backPath = NSBezierPath(rect: back)
-            backPath.lineWidth = lineWidth
-            backPath.stroke()
+            // M5.5 9.5 H3 A1.5 … 1.5 8 V4 A1.5 … 3 2.5 h6 A1.5 … 10.5 4 v2.5
+            let back = NSBezierPath()
+            back.move(to: NSPoint(x: 5.5, y: 9.5))
+            back.line(to: NSPoint(x: 3, y: 9.5))
+            back.appendArc(from: NSPoint(x: 1.5, y: 9.5), to: NSPoint(x: 1.5, y: 8), radius: 1.5)
+            back.line(to: NSPoint(x: 1.5, y: 4))
+            back.appendArc(from: NSPoint(x: 1.5, y: 2.5), to: NSPoint(x: 3, y: 2.5), radius: 1.5)
+            back.line(to: NSPoint(x: 9, y: 2.5))
+            back.appendArc(from: NSPoint(x: 10.5, y: 2.5), to: NSPoint(x: 10.5, y: 4), radius: 1.5)
+            back.line(to: NSPoint(x: 10.5, y: 6.5))
 
-            // The front square hides the back one where they overlap.
-            NSGraphicsContext.current?.compositingOperation = .clear
-            NSBezierPath(rect: front.insetBy(dx: -lineWidth / 2, dy: -lineWidth / 2)).fill()
-            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            // rect 5.5, 6.5, 9 × 7, rx 1.5
+            let front = NSBezierPath(roundedRect: NSRect(x: 5.5, y: 6.5, width: 9, height: 7), xRadius: 1.5, yRadius: 1.5)
 
-            let frontPath = NSBezierPath(rect: front)
-            frontPath.lineWidth = lineWidth
-            if filled {
-                frontPath.fill()
-                frontPath.stroke()
-            } else {
-                frontPath.stroke()
+            // M8.3 10 h3.4 · M10.6 8.8 L11.8 10 l-1.2 1.2
+            let arrow = NSBezierPath()
+            arrow.move(to: NSPoint(x: 8.3, y: 10))
+            arrow.line(to: NSPoint(x: 11.7, y: 10))
+            arrow.move(to: NSPoint(x: 10.6, y: 8.8))
+            arrow.line(to: NSPoint(x: 11.8, y: 10))
+            arrow.line(to: NSPoint(x: 10.6, y: 11.2))
+
+            for path in [back, front, arrow] {
+                path.lineWidth = lineWidth
+                path.lineCapStyle = .round
+                path.lineJoinStyle = .round
             }
-
-            // ⇥: an arrow to a bar, centered in the front square.
-            let midY = front.midY
-            let notch = NSBezierPath()
-            notch.lineWidth = 1.25
-            notch.lineCapStyle = .round
-            notch.lineJoinStyle = .round
-            notch.move(to: NSPoint(x: front.minX + 2.25, y: midY))
-            notch.line(to: NSPoint(x: front.maxX - 3.25, y: midY))
-            notch.move(to: NSPoint(x: front.maxX - 5.25, y: midY + 2))
-            notch.line(to: NSPoint(x: front.maxX - 3.25, y: midY))
-            notch.line(to: NSPoint(x: front.maxX - 5.25, y: midY - 2))
-            notch.move(to: NSPoint(x: front.maxX - 2, y: midY + 2.5))
-            notch.line(to: NSPoint(x: front.maxX - 2, y: midY - 2.5))
+            back.stroke()
+            front.stroke()
             if filled {
+                front.fill()
                 NSGraphicsContext.current?.compositingOperation = .clear
-                notch.stroke()
+                arrow.stroke()
                 NSGraphicsContext.current?.compositingOperation = .sourceOver
             } else {
-                notch.stroke()
+                arrow.stroke()
             }
             return true
         }

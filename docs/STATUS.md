@@ -2,8 +2,8 @@
 
 ## Goal
 
-Soprano Tab: a copy of AltTab (macOS window switcher) in the Soprano family, Mission
-Control chrome. Full feature scope from the start: every window, three styles, search,
+Soprano Tab: a copy of AltTab (macOS window switcher) in the Soprano family, Folio
+chrome. Full feature scope from the start: every window, three styles, search,
 preview, window actions from the switcher, up to 9 shortcuts with their own filters,
 trackpad swipe, exceptions, command line. `docs/ROADMAP.md` lists what is deliberately
 not copied.
@@ -24,13 +24,13 @@ not copied.
 - Keyboard tap (ISO keyboards mapped so the key above Tab is shortcut 2 on every layout)
   and trackpad gesture tap.
 - Switcher panel in thumbnails, app icons and titles styles with search strip, preview,
-  window-control lamps, badges, header and key hints.
+  traffic-light window controls, chips, header and keycap hints, in Folio Paper or Ink.
 - Menu bar item, login item, `settings.json` with live reload and warnings in the menu,
-  Soprano theme following, command line (`list`, `focus`, `show`, `hide`, `help`),
+  Soprano theme and appearance following, command line (`list`, `focus`, `show`, `hide`, `help`),
   permissions window with first-launch prompts.
 - Offscreen `snapshot` harness with fixture desktops (standard, crowded, windowless,
   empty, multiScreen) and the permissions window; packaging, signing and sync scripts.
-- 256 tests.
+- 275 tests.
 
 ## Next
 

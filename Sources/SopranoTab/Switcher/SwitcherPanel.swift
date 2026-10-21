@@ -3,7 +3,8 @@ import AppKit
 /// The borderless, non-activating panel the switcher and its preview live in. It floats
 /// over every app and Space (fullscreen ones too), never hides when another app is active,
 /// stays out of the window cycle, and becomes key only while `allowsKey` is set (the search
-/// field has focus), so showing it never activates Soprano Tab.
+/// field has focus), so showing it never activates Soprano Tab. Its appearance follows the
+/// switcher's theme (set on every draw).
 final class SwitcherPanel: NSPanel {
     /// The level the switcher panel uses; the preview sits one below it.
     static let switcherLevel = NSWindow.Level.popUpMenu
@@ -30,7 +31,6 @@ final class SwitcherPanel: NSPanel {
         isMovable = false
         animationBehavior = .none
         acceptsMouseMovedEvents = true
-        appearance = NSAppearance(named: .darkAqua)
     }
 
     @available(*, unavailable)

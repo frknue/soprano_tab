@@ -120,11 +120,14 @@ public struct TileLayout: Equatable, Sendable {
     public var headerFrame: CGRect
     /// The search field strip, panel coordinates; nil when not shown.
     public var searchFieldFrame: CGRect?
-    /// The scrollable tile area, panel coordinates.
+    /// The scrollable tile area, panel coordinates. It reaches
+    /// `selectionRingMargin` past the tiles on every side so the selection ring is
+    /// never clipped.
     public var contentFrame: CGRect
-    /// The tile area's full size; taller than `contentFrame` when items overflow.
+    /// The scrolling content's full size, ring margin included; taller than
+    /// `contentFrame` when items overflow.
     public var contentSize: CGSize
-    /// One frame per item, in content coordinates.
+    /// One frame per item, in content coordinates (inset by `selectionRingMargin`).
     public var tileFrames: [CGRect]
     /// The thumbnail or icon rect inside each tile, tile-local coordinates.
     public var imageFrames: [CGRect]

@@ -1,24 +1,34 @@
 import AppKit
 import SopranoTabCore
 
-/// One switcher item in any of the three styles. Tile views are reused across updates:
-/// text, icons and badges are rebuilt only when the tile's content changes, so a selection
-/// or hover change only restyles fills, frames and lamps.
+/// One switcher item in any of the three styles (Folio, direction.md §11 Tab). Tile views
+/// are reused across updates: icons and chips are rebuilt only when the tile's content
+/// changes; a selection or hover change restyles the fill, the ring or pill, the title and
+/// the window controls.
 final class TileView: FlippedView {
-    static let lampSide: CGFloat = 10
+    /// Window-control lamps: 12 pt circles, 6 apart (`--h-window-lamp`).
+    static let lampSide: CGFloat = 12
     static let lampGap: CGFloat = 6
+    /// Padding of the opaque corner chip the lamps sit on (`.thumb-lamps`: 6 v / 8 h).
+    static let lampChipPadding = CGSize(width: 8, height: 6)
     /// The app icon beside the title in a thumbnail tile's title strip.
     static let stripIconSide: CGFloat = 16
-    static let railWidth: CGFloat = 2
-    static let selectionFrameWidth: CGFloat = 2
+    static let stripIconGap: CGFloat = 6
+    /// Chips sit this far in from the image's bottom-left corner, this far apart.
+    static let chipInset: CGFloat = 4
 
     private(set) var index = 0
     private(set) var itemID: ItemID?
     private(set) var isSelected = false
     private(set) var isHovered = false
-    /// The control lamps showing, in order: none unless hovered, close / minimize /
+    /// The window controls showing, in order: none unless hovered, close / minimize /
     /// fullscreen on a window's tile, quit alone on a windowless app's tile.
     private(set) var controls: [TileControl] = []
+
+    /// The selected thumbnail or app-icon tile shows the accent ring (for tests).
+    var showsSelectionRing: Bool { !ring.isHidden }
+    /// The title as drawn, with its colour, weight and search hits (for tests).
+    var titleText: NSAttributedString { titleLabel.attributedStringValue }
 
     var onClick: ((Int) -> Void)?
     var onControl: ((Int, TileControl) -> Void)?
@@ -27,27 +37,32 @@ final class TileView: FlippedView {
     private let stripIcon = TileImageView()
     private let titleLabel = SwitcherText.label()
     private let appNameLabel = SwitcherText.label()
-    private let rail = FlippedView()
+    /// The selected tile's accent ring, `selectionRingGap` outside the tile.
+    private let ring = FlippedView()
+    /// The title row's hover or selection pill (with the pencil tick), the family's
+    /// shared `ChromeSelectionPill`.
+    private let rowBackground = ChromeRowBackgroundView(theme: .folioPaper)
+    /// The lamps' corner chip over the image (thumbnails, app icons); a bare row of lamps
+    /// in the titles style.
+    private let lampChip = LampChipView()
     private let lamps: [(control: TileControl, view: FlippedView)] = TileControl.allCases.map { (control: $0, view: FlippedView()) }
     private var chips: [ChipView] = []
 
+    private var tile: TileViewModel?
     private var content: Content?
     private var style = SwitcherStyle.thumbnails
+    private var truncation = TitleTruncation.end
     private var imageFrame = CGRect.zero
     private var titleFrame = CGRect.zero
-    private var colors = AppTheme.missionControl.colors
+    private var theme = AppTheme.folioPaper
 
-    /// What the tile shows apart from selection and hover; a change rebuilds text and icons.
+    /// What the tile shows apart from selection and hover; a change rebuilds icons and chips.
     private struct Content: Equatable {
         var id: ItemID
-        var title: String
-        var highlightedRanges: [NSRange]
-        var appName: String
-        var badges: TileBadges
+        var chips: [String]
         var isWindowlessApp: Bool
         var style: SwitcherStyle
         var themeID: String
-        var truncation: TitleTruncation
         var icon: ObjectIdentifier?
         var imageSize: CGSize
         var scale: CGFloat
@@ -55,6 +70,10 @@ final class TileView: FlippedView {
 
     init() {
         super.init(frame: .zero)
+        rowBackground.translatesAutoresizingMaskIntoConstraints = true
+        // The tile's bounds are the pill: the layout already insets the row.
+        rowBackground.inset = 0
+        addSubview(rowBackground)
         appNameLabel.alignment = .right
         titleLabel.setAccessibilityElement(false)
         appNameLabel.setAccessibilityElement(false)
@@ -62,12 +81,17 @@ final class TileView: FlippedView {
         addSubview(stripIcon)
         addSubview(titleLabel)
         addSubview(appNameLabel)
-        addSubview(rail)
+        ring.layer?.borderWidth = TileLayout.selectionRingWidth
+        ring.layer?.cornerRadius = Chrome.Radius.card + TileLayout.selectionRingMargin
+        ring.isHidden = true
+        ring.setAccessibilityElement(false)
+        addSubview(ring)
         for (control, lamp) in lamps {
             lamp.layer?.cornerRadius = Self.lampSide / 2
+            lamp.layer?.borderWidth = 0.5
             lamp.setAccessibilityElement(false)
             lamp.toolTip = control.label
-            addSubview(lamp)
+            lampChip.addSubview(lamp)
         }
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
@@ -96,10 +120,12 @@ final class TileView: FlippedView {
     ) {
         self.index = index
         self.itemID = tile.id
+        self.tile = tile
         self.style = style
+        self.truncation = truncation
         self.imageFrame = imageFrame
         self.titleFrame = titleFrame
-        self.colors = theme.colors
+        self.theme = theme
         self.isSelected = isSelected
         self.isHovered = isHovered
         if showsWindowControls && isHovered {
@@ -113,21 +139,17 @@ final class TileView: FlippedView {
         self.frame = frame
         let content = Content(
             id: tile.id,
-            title: tile.title,
-            highlightedRanges: tile.highlightedRanges,
-            appName: tile.appName,
-            badges: tile.badges,
+            chips: tile.chips,
             isWindowlessApp: tile.isWindowlessApp,
             style: style,
             themeID: theme.id,
-            truncation: truncation,
             icon: tile.icon.map(ObjectIdentifier.init),
             imageSize: imageFrame.size,
             scale: scale
         )
         if content != self.content {
             self.content = content
-            applyContent(tile, truncation: truncation, scale: scale)
+            applyContent(tile, scale: scale)
         }
         imageArea.thumbnail = style == .thumbnails ? tile.thumbnail : nil
         applyState()
@@ -147,111 +169,119 @@ final class TileView: FlippedView {
         CATransaction.commit()
     }
 
-    private func applyContent(_ tile: TileViewModel, truncation: TitleTruncation, scale: CGFloat) {
-        let iconAlpha: Float = tile.isWindowlessApp ? 0.6 : 1
-        let titleColor = tile.isWindowlessApp ? colors.textMuted : colors.textPrimary
-        let lineBreak = SwitcherText.lineBreakMode(for: truncation)
+    private func applyContent(_ tile: TileViewModel, scale: CGFloat) {
+        let colors = theme.colors
+        // Windowless tiles dim what the image well shows, not the title strip's icon.
+        let wellAlpha: Float = tile.isWindowlessApp ? 0.6 : 1
         switch style {
         case .thumbnails:
             let fallbackSide = min(imageFrame.width, imageFrame.height / 2).rounded(.down)
             imageArea.configure(
-                fill: colors.bgRaised,
+                fill: colors.raised,
+                cornerRadius: Chrome.Radius.cap,
                 icon: SwitcherText.cgImage(tile.icon, side: fallbackSide, scale: scale),
                 iconSide: fallbackSide,
-                iconAlpha: iconAlpha
+                iconAlpha: wellAlpha
             )
             stripIcon.configure(
                 fill: nil,
+                cornerRadius: Chrome.Radius.cap,
                 icon: SwitcherText.cgImage(tile.icon, side: Self.stripIconSide, scale: scale),
                 iconSide: Self.stripIconSide,
-                iconAlpha: iconAlpha
+                iconAlpha: 1
             )
-            titleLabel.attributedStringValue = SwitcherText.title(
-                tile.title, highlights: tile.highlightedRanges, font: RetroFont.body(12),
-                color: titleColor, highlight: colors.accent, lineBreakMode: lineBreak
-            )
-        case .appIcons:
+        case .appIcons, .titles:
             let side = min(imageFrame.width, imageFrame.height)
             imageArea.configure(
                 fill: nil,
+                cornerRadius: 0,
                 icon: SwitcherText.cgImage(tile.icon, side: side, scale: scale),
                 iconSide: side,
-                iconAlpha: iconAlpha
-            )
-            titleLabel.attributedStringValue = SwitcherText.title(
-                tile.title, highlights: tile.highlightedRanges, font: RetroFont.body(11),
-                color: titleColor, highlight: colors.accent, alignment: .center, lineBreakMode: lineBreak
-            )
-        case .titles:
-            let side = min(imageFrame.width, imageFrame.height)
-            imageArea.configure(
-                fill: nil,
-                icon: SwitcherText.cgImage(tile.icon, side: side, scale: scale),
-                iconSide: side,
-                iconAlpha: iconAlpha
-            )
-            titleLabel.attributedStringValue = SwitcherText.title(
-                tile.title, highlights: tile.highlightedRanges, font: RetroFont.body(13),
-                color: titleColor, highlight: colors.accent, lineBreakMode: lineBreak
-            )
-            appNameLabel.attributedStringValue = SwitcherText.plain(
-                tile.appName, font: RetroFont.body(11), color: colors.textMuted, alignment: .right
+                iconAlpha: wellAlpha
             )
         }
+        appNameLabel.attributedStringValue = SwitcherText.plain(
+            tile.appName, font: ChromeFont.meta, color: colors.textMuted, alignment: .right
+        )
         stripIcon.isHidden = style != .thumbnails
         appNameLabel.isHidden = style != .titles
-        rebuildChips(tile.badges)
+        rebuildChips(tile.chips)
     }
 
-    private func rebuildChips(_ badges: TileBadges) {
-        var texts: [String] = []
-        if badges.minimized { texts.append("min") }
-        if badges.hidden { texts.append("hidden") }
-        if badges.fullscreen { texts.append("full") }
-        if let space = badges.spaceLabel { texts.append(space) }
+    private func rebuildChips(_ texts: [String]) {
         while chips.count > texts.count {
             chips.removeLast().removeFromSuperview()
         }
         while chips.count < texts.count {
             let chip = ChipView()
-            addSubview(chip, positioned: .below, relativeTo: lamps.first?.view)
+            addSubview(chip, positioned: .below, relativeTo: ring)
             chips.append(chip)
         }
+        let look: ChipView.Look = style == .titles ? .row : .onImage
         for (chip, text) in zip(chips, texts) {
-            chip.configure(text: text, colors: colors)
+            chip.configure(text: text, look: look, colors: theme.colors)
         }
     }
 
-    /// Fills, frames, the title row's rail and the lamps: everything selection and hover change.
+    /// The title follows selection and hover: muted at rest, ink when hovered, ink Medium
+    /// when selected (thumbnails, app icons); title rows stay ink. Windowless apps stay
+    /// muted. Search hits are Semibold ink, `matchOnSelection` on the selected tile.
+    private func applyTitle() {
+        guard let tile else { return }
+        let colors = theme.colors
+        let font: NSFont
+        var color: NSColor
+        switch style {
+        case .thumbnails, .appIcons:
+            font = isSelected ? ChromeFont.labelStrong : ChromeFont.label
+            color = isSelected || isHovered ? colors.textPrimary : colors.textMuted
+        case .titles:
+            font = ChromeFont.row
+            color = colors.textPrimary
+        }
+        if tile.isWindowlessApp {
+            color = colors.textMuted
+        }
+        titleLabel.attributedStringValue = SwitcherText.title(
+            tile.title,
+            highlights: tile.highlightedRanges,
+            font: font,
+            color: color,
+            highlight: isSelected ? colors.matchOnSelection : colors.textPrimary,
+            alignment: style == .appIcons ? .center : .natural,
+            lineBreakMode: SwitcherText.lineBreakMode(for: truncation)
+        )
+    }
+
+    /// Fill, ring or row pill, title, lamps: everything selection and hover change.
     private func applyState() {
         guard let layer else { return }
-        let fill: NSColor
-        var borderColor = colors.borderSubtle
-        var borderWidth: CGFloat = 0
+        let colors = theme.colors
         switch style {
-        case .thumbnails:
-            fill = isSelected ? colors.bgSelectedStrong : (isHovered ? colors.bgOverlay : colors.bgPanel)
-            borderWidth = isSelected ? Self.selectionFrameWidth : Retro.hairline
-        case .appIcons:
-            fill = isSelected ? colors.bgSelectedStrong : (isHovered ? colors.bgOverlay : .clear)
-            borderWidth = isSelected ? Self.selectionFrameWidth : (isHovered ? Retro.hairline : 0)
+        case .thumbnails, .appIcons:
+            layer.backgroundColor = (isHovered ? colors.hover : colors.bgPanel).cgColor
+            layer.cornerRadius = Chrome.Radius.card
         case .titles:
-            fill = isSelected ? colors.bgSelectedStrong : (isHovered ? colors.bgOverlay : .clear)
+            layer.backgroundColor = nil
+            layer.cornerRadius = 0
         }
-        if isSelected {
-            borderColor = colors.accent
-        }
-        layer.backgroundColor = fill.cgColor
-        layer.borderColor = borderColor.cgColor
-        layer.borderWidth = borderWidth
-        layer.cornerRadius = Retro.cornerRadius
+        rowBackground.isHidden = style != .titles
+        rowBackground.style = isSelected ? .selected : (isHovered ? .hover : .none)
+        rowBackground.apply(theme: theme)
+        // AppKit turns clipping back on for a rounded layer; the ring lies outside the tile.
+        clipsToBounds = false
+        layer.masksToBounds = false
+        ring.isHidden = !(isSelected && style != .titles)
+        ring.layer?.borderColor = colors.focusMark.cgColor
+        applyTitle()
 
-        rail.isHidden = !(style == .titles && isSelected)
-        rail.layer?.backgroundColor = colors.accent.cgColor
-
+        lampChip.isHidden = controls.isEmpty
+        lampChip.configure(fill: style == .titles ? nil : colors.raised, shadow: style == .titles ? nil : colors.shadowE2)
+        let edge = TrafficLight.edge(for: theme.appearance)
         for (control, lamp) in lamps {
             lamp.isHidden = !controls.contains(control)
-            RetroLamp.light(lamp, color: control.color(in: colors))
+            lamp.layer?.backgroundColor = control.trafficColor.cgColor
+            lamp.layer?.borderColor = edge.cgColor
         }
     }
 
@@ -260,7 +290,9 @@ final class TileView: FlippedView {
     private func layoutContents() {
         imageArea.frame = imageFrame
         imageArea.layoutLayers()
-        rail.frame = CGRect(x: 0, y: 0, width: Self.railWidth, height: bounds.height)
+        let margin = TileLayout.selectionRingMargin
+        ring.frame = bounds.insetBy(dx: -margin, dy: -margin)
+        rowBackground.frame = bounds
         switch style {
         case .thumbnails: layoutThumbnailTile()
         case .appIcons: layoutAppIconTile()
@@ -269,84 +301,86 @@ final class TileView: FlippedView {
     }
 
     private func layoutThumbnailTile() {
-        // Like a macOS title bar: lamps first, then the app icon and the title.
-        var leading = titleFrame.minX
-        if !controls.isEmpty {
-            leading = layoutLamps(leading: leading, centerY: titleFrame.midY) + Self.lampGap
-        }
         let iconSide = Self.stripIconSide
-        stripIcon.frame = CGRect(x: leading, y: (titleFrame.midY - iconSide / 2).rounded(), width: iconSide, height: iconSide)
+        stripIcon.frame = CGRect(x: titleFrame.minX, y: (titleFrame.midY - iconSide / 2).rounded(), width: iconSide, height: iconSide)
         stripIcon.layoutLayers()
         titleLabel.frame = SwitcherText.lineFrame(
-            minX: stripIcon.frame.maxX + 6, maxX: titleFrame.maxX, centerY: titleFrame.midY, font: RetroFont.body(12)
+            minX: stripIcon.frame.maxX + Self.stripIconGap, maxX: titleFrame.maxX,
+            centerY: titleFrame.midY, font: ChromeFont.labelStrong
         )
+        layoutLampChip(in: imageArea, origin: .zero, padding: Self.lampChipPadding)
         layoutChipsAtImageBottomLeft()
     }
 
     private func layoutAppIconTile() {
         titleLabel.frame = SwitcherText.lineFrame(
-            minX: titleFrame.minX, maxX: titleFrame.maxX, centerY: titleFrame.midY, font: RetroFont.body(11)
+            minX: titleFrame.minX, maxX: titleFrame.maxX, centerY: titleFrame.midY, font: ChromeFont.labelStrong
         )
-        if !controls.isEmpty {
-            // The title strip is too narrow for lamps and a title; they sit over the icon's
-            // top-leading corner instead.
-            _ = layoutLamps(leading: imageFrame.minX, centerY: imageFrame.minY + Self.lampSide / 2)
-        }
+        layoutLampChip(in: imageArea, origin: .zero, padding: Self.lampChipPadding)
         layoutChipsAtImageBottomLeft()
     }
 
     private func layoutTitleRow() {
         var leading = titleFrame.minX
         if !controls.isEmpty {
-            leading = layoutLamps(leading: leading, centerY: titleFrame.midY) + 8
+            let origin = CGPoint(x: leading, y: (titleFrame.midY - Self.lampSide / 2).rounded())
+            leading = layoutLampChip(in: self, origin: origin, padding: .zero) + 8
         }
         var trailing = titleFrame.maxX
         if !chips.isEmpty {
             var x = trailing
+            let height = ChipView.height(.row)
             for chip in chips.reversed() {
                 x -= chip.preferredWidth
-                chip.frame = CGRect(x: x, y: (titleFrame.midY - ChipView.height / 2).rounded(), width: chip.preferredWidth, height: ChipView.height)
+                chip.frame = CGRect(x: x, y: (titleFrame.midY - height / 2).rounded(), width: chip.preferredWidth, height: height)
                 chip.isHidden = false
-                x -= 4
+                x -= Self.chipInset
             }
-            trailing = x - 4
+            trailing = x - Self.chipInset
         }
         let nameWidth = min(
             SwitcherText.width(of: appNameLabel.attributedStringValue),
             max(0, (trailing - leading) / 2)
         )
         appNameLabel.frame = SwitcherText.lineFrame(
-            minX: trailing - nameWidth, maxX: trailing, centerY: titleFrame.midY, font: RetroFont.body(11)
+            minX: trailing - nameWidth, maxX: trailing, centerY: titleFrame.midY, font: ChromeFont.meta
         )
         if nameWidth > 0 {
             trailing -= nameWidth + 8
         }
         titleLabel.frame = SwitcherText.lineFrame(
-            minX: leading, maxX: trailing, centerY: titleFrame.midY, font: RetroFont.body(13)
+            minX: leading, maxX: trailing, centerY: titleFrame.midY, font: ChromeFont.row
         )
     }
 
-    /// Places the shown lamps left-aligned at `leading`, like macOS window buttons; returns
-    /// the trailing edge of the group.
-    private func layoutLamps(leading: CGFloat, centerY: CGFloat) -> CGFloat {
+    /// Places the lamp chip at `origin` in `parent` with the shown lamps left-aligned, like
+    /// macOS window buttons; returns the chip's trailing edge.
+    @discardableResult
+    private func layoutLampChip(in parent: NSView, origin: CGPoint, padding: CGSize) -> CGFloat {
+        if lampChip.superview !== parent {
+            parent.addSubview(lampChip)
+        }
         let side = Self.lampSide
-        var x = leading
+        var x = padding.width
         for (control, lamp) in lamps where controls.contains(control) {
-            lamp.frame = CGRect(x: x, y: (centerY - side / 2).rounded(), width: side, height: side)
+            lamp.frame = CGRect(x: x, y: padding.height, width: side, height: side)
             x += side + Self.lampGap
         }
-        return x - Self.lampGap
+        let width = controls.isEmpty ? 0 : x - Self.lampGap + padding.width
+        lampChip.frame = CGRect(x: origin.x, y: origin.y, width: width, height: side + padding.height * 2)
+        return lampChip.frame.maxX
     }
 
-    /// Badges in a row at the image's bottom-left; chips that do not fit are hidden.
+    /// Chips in a row at the image's bottom-left; chips that do not fit are hidden.
     private func layoutChipsAtImageBottomLeft() {
-        let inset: CGFloat = 4
+        let inset = Self.chipInset
+        let height = ChipView.height(.onImage)
         var x = imageFrame.minX + inset
-        let y = imageFrame.maxY - inset - ChipView.height
+        let y = imageFrame.maxY - inset - height
         for chip in chips {
             let fits = x + chip.preferredWidth <= imageFrame.maxX - inset
             chip.isHidden = !fits
-            chip.frame = CGRect(x: x, y: y, width: chip.preferredWidth, height: ChipView.height)
+            chip.frame = CGRect(x: x, y: y, width: chip.preferredWidth, height: height)
             x += chip.preferredWidth + inset
         }
     }
@@ -370,7 +404,11 @@ final class TileView: FlippedView {
 
     /// The shown lamp under `point` (tile coordinates), with a few points of slack around each.
     func control(at point: CGPoint) -> TileControl? {
-        lamps.first { controls.contains($0.control) && $0.view.frame.insetBy(dx: -3, dy: -3).contains(point) }?.control
+        guard !lampChip.isHidden else { return nil }
+        return lamps.first { lamp in
+            controls.contains(lamp.control)
+                && lamp.view.convert(lamp.view.bounds, to: self).insetBy(dx: -3, dy: -3).contains(point)
+        }?.control
     }
 
     override func accessibilityPerformPress() -> Bool {
@@ -379,30 +417,98 @@ final class TileView: FlippedView {
     }
 }
 
+/// The window controls' opaque corner chip (`.thumb-lamps`): `raised`, only its
+/// bottom-right corner rounded, e2 shadow; it covers the thumbnail's own traffic lights.
+/// In the titles style it has no fill and no shadow.
+final class LampChipView: FlippedView {
+    private var fill: NSColor?
+    private var elevation: ThemeShadow?
+
+    func configure(fill: NSColor?, shadow: ThemeShadow?) {
+        self.fill = fill
+        elevation = shadow
+        applyShadow()
+        needsDisplay = true
+    }
+
+    /// `ThemeShadow` reads the layer tree's flipping to cast downward, so it is applied
+    /// again whenever the chip moves between the image well and the title row.
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        applyShadow()
+    }
+
+    private func applyShadow() {
+        guard let layer else { return }
+        if let elevation {
+            elevation.apply(to: layer)
+            // Flush in the image's corner: the shadow without the contact ring.
+            layer.borderWidth = 0
+        } else {
+            layer.shadowOpacity = 0
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.shadowPath = fill == nil ? nil : Self.shape(in: bounds).cgPath
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let fill else { return }
+        fill.setFill()
+        Self.shape(in: bounds).fill()
+    }
+
+    /// `rect` with only the bottom-right corner rounded (flipped view coordinates).
+    private static func shape(in rect: NSRect) -> NSBezierPath {
+        let radius = min(Chrome.Radius.control, rect.width / 2, rect.height / 2)
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: rect.minX, y: rect.minY))
+        path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
+        path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.appendArc(from: NSPoint(x: rect.maxX, y: rect.maxY), to: NSPoint(x: rect.maxX - radius, y: rect.maxY), radius: radius)
+        path.line(to: NSPoint(x: rect.minX, y: rect.maxY))
+        path.close()
+        return path
+    }
+}
+
+/// The real macOS traffic-light colours (not theme tokens), with their 0.5 pt inset edge.
+enum TrafficLight {
+    static let close = NSColor.fromHex("#ff5f57")
+    static let minimize = NSColor.fromHex("#febc2e")
+    static let zoom = NSColor.fromHex("#28c840")
+
+    static func edge(for appearance: AppTheme.Appearance) -> NSColor {
+        NSColor.black.withAlphaComponent(appearance == .light ? 0.12 : 0.30)
+    }
+}
+
 private extension TileControl {
     var label: String {
         switch self {
         case .close: "Close"
         case .minimize: "Minimize"
-        case .fullscreen: "Fullscreen"
+        case .fullscreen: "Full screen"
         case .quit: "Quit"
         }
     }
 
-    func color(in colors: ThemeColors) -> NSColor {
+    var trafficColor: NSColor {
         switch self {
-        case .close: colors.danger
-        case .minimize: colors.yellow
-        case .fullscreen: colors.success
-        case .quit: colors.danger
+        case .close, .quit: TrafficLight.close
+        case .minimize: TrafficLight.minimize
+        case .fullscreen: TrafficLight.zoom
         }
     }
 }
 
 // MARK: - Image area
 
-/// A tile's image rect: an optional fill (`bgRaised` for thumbnails) with the thumbnail
-/// aspect-fit over it, or the app icon centered at `iconSide` when there is no thumbnail.
+/// A tile's image rect: an optional fill (`raised` for thumbnails, clipped to its corner
+/// radius) with the thumbnail aspect-fit over it, or the app icon centered at `iconSide`
+/// when there is no thumbnail.
 final class TileImageView: FlippedView {
     private let imageLayer = CALayer()
     private let iconLayer = CALayer()
@@ -432,10 +538,15 @@ final class TileImageView: FlippedView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(fill: NSColor?, icon: CGImage?, iconSide: CGFloat, iconAlpha: Float) {
+    func configure(fill: NSColor?, cornerRadius: CGFloat, icon: CGImage?, iconSide: CGFloat, iconAlpha: Float) {
         layer?.backgroundColor = fill?.cgColor
+        layer?.cornerRadius = cornerRadius
+        // A rounded well clips its thumbnail and the window-control chip in its corner.
+        clipsToBounds = cornerRadius > 0
+        layer?.masksToBounds = cornerRadius > 0
         iconLayer.contents = icon
         iconLayer.opacity = iconAlpha
+        imageLayer.opacity = iconAlpha
         self.iconSide = iconSide
     }
 
@@ -451,19 +562,33 @@ final class TileImageView: FlippedView {
     }
 }
 
-// MARK: - Badge chip
+// MARK: - Chip
 
-/// A status badge: display-face text in `textMuted` on `bgBase` at 0.85 with a hairline.
+/// A tile chip: "Minimized", "Hidden", "Full screen", the Space. On an image it is the
+/// Folio `.tile-chip` (16 pt, `bgBase` at 90 %, ink 11 Medium); in a title row the `.chip`
+/// (18 pt, `bgOverlay`, muted 11 Medium).
 final class ChipView: FlippedView {
-    static let height: CGFloat = 16
-    static let horizontalPadding: CGFloat = 4
+    enum Look {
+        case onImage
+        case row
+    }
+
+    static func height(_ look: Look) -> CGFloat {
+        look == .onImage ? 16 : Chrome.chipHeight
+    }
+
+    private static func padding(_ look: Look) -> CGFloat {
+        look == .onImage ? 5 : 6
+    }
 
     private var text = NSAttributedString()
+    private var look = Look.onImage
     private(set) var preferredWidth: CGFloat = 0
 
     init() {
         super.init(frame: .zero)
         setAccessibilityElement(false)
+        layer?.cornerRadius = Chrome.Radius.cap
     }
 
     @available(*, unavailable)
@@ -471,17 +596,20 @@ final class ChipView: FlippedView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(text: String, colors: ThemeColors) {
-        self.text = RetroText.display(text, color: colors.textMuted, lineBreakMode: .byClipping)
-        preferredWidth = SwitcherText.width(of: self.text) + Self.horizontalPadding * 2
-        layer?.backgroundColor = colors.bgBase.withAlphaComponent(0.85).cgColor
-        layer?.borderColor = colors.borderSubtle.cgColor
-        layer?.borderWidth = Retro.hairline
+    func configure(text: String, look: Look, colors: ThemeColors) {
+        self.look = look
+        let color = look == .onImage ? colors.textPrimary : colors.textMuted
+        self.text = ChromeText.attributed(
+            text, font: ChromeFont.sans(size: 11, weight: .medium), color: color, lineBreakMode: .byClipping
+        )
+        preferredWidth = ceil(self.text.size().width) + Self.padding(look) * 2
+        let fill = look == .onImage ? colors.bgBase.withAlphaComponent(0.9) : colors.bgOverlay
+        layer?.backgroundColor = fill.cgColor
         needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
         let size = text.size()
-        text.draw(at: NSPoint(x: Self.horizontalPadding, y: ((bounds.height - size.height) / 2).rounded()))
+        text.draw(at: NSPoint(x: Self.padding(look), y: ((bounds.height - size.height) / 2).rounded()))
     }
 }

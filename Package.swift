@@ -14,13 +14,9 @@ let package = Package(
             name: "SopranoTab",
             dependencies: ["SopranoTabCore"],
             path: "Sources/SopranoTab",
-            exclude: ["Vendored/SOPRANO_COMMIT"],
-            resources: [
-                .copy("Resources/DepartureMono-Regular.woff2"),
-                .copy("Resources/AppIcon.icns"),
-            ],
+            // AppIcon.icns is packaged by scripts/package-app.sh, not as an SPM resource.
+            exclude: ["Vendored/SOPRANO_COMMIT", "Resources/AppIcon.icns"],
             linkerSettings: [
-                .linkedFramework("CoreText"),
                 .linkedFramework("CoreServices"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("ScreenCaptureKit"),

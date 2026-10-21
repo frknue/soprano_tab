@@ -10,7 +10,6 @@ followed by ideas beyond AltTab that are not built.
 - Sparkle updates and crash reports: install with `scripts/install.sh`.
 - The Pro license.
 - 21 UI languages: the family's UI is English.
-- Light and system themes: Soprano themes, all dark.
 
 ## Later
 

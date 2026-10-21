@@ -177,7 +177,7 @@ public struct WindowFilters: Equatable, Sendable {
 public struct AppearanceOverrides: Equatable, Sendable {
     public var style: SwitcherStyle?
     public var size: SwitcherSize?
-    /// A Soprano theme id or "soprano".
+    /// A Soprano theme id ("folio", "folio-paper", …) or "soprano".
     public var theme: String?
     public var previewSelectedWindow: Bool?
 
@@ -277,12 +277,12 @@ public struct AppearanceSettings: Equatable, Sendable {
     public var screen: ScreenChoice = .active
     public var titles: TitleContent = .windowTitle
     public var titleTruncation: TitleTruncation = .end
-    /// Close / minimize / fullscreen lamps on the hovered tile (AltTab's colored circles), a
-    /// quit lamp on a windowless app's tile.
+    /// Close / minimize / full-screen controls in the macOS traffic-light colours on the
+    /// hovered tile (AltTab's coloured circles), a quit control on a windowless app's tile.
     public var windowControls = true
-    /// Space number badges on tiles.
+    /// "Space 2" / "All Spaces" chips on tiles.
     public var spaceLabels = false
-    /// Minimized / hidden / fullscreen badges on tiles.
+    /// "Minimized" / "Hidden" / "Full screen" chips on tiles.
     public var statusIcons = true
     /// A quick tap switches without ever showing the panel when it is shorter than this.
     public var showDelayMs = 100
@@ -346,7 +346,8 @@ public struct AppBehaviorSettings: Equatable, Sendable {
 }
 
 public struct SopranoTabSettings: Equatable, Sendable {
-    /// A Soprano theme id, or "soprano" to follow ~/.config/soprano/settings.json.
+    /// A Soprano theme id ("folio" follows macOS), or "soprano" to follow the theme and
+    /// appearance in ~/.config/soprano/settings.json.
     public var theme = "soprano"
     /// 1...9 shortcuts; index 0 is "shortcut 1".
     public var shortcuts = ShortcutSettings.defaults

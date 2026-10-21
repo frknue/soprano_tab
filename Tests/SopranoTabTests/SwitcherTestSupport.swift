@@ -202,7 +202,7 @@ final class SwitcherHarness {
         let state = State(settings: settings)
         let environment = SwitcherEnvironment(
             settings: { state.settings },
-            theme: { _ in AppTheme.missionControl },
+            theme: { _ in AppTheme.folioPaper },
             schedule: { milliseconds, work in scheduler.schedule(milliseconds, work) },
             haptic: { state.haptics += 1 }
         )
