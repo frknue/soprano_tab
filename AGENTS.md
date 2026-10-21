@@ -96,7 +96,8 @@ copied or not built.
   only, system fonts through `ChromeFont` (New York only at 15 pt or more), radii and sizes
   from `Chrome`. The accent marks the selection (ring, tick, preview frame), the caret and
   search hits on the selected tile. Every window takes `theme.appearance.nsAppearance`
-  from its resolved theme; `NSApp.appearance` stays unset so `folio` follows macOS.
+  from its resolved theme. Only `ThemeCenter` sets `NSApp.appearance`: nil while the
+  global theme follows macOS, the theme's appearance otherwise.
 - Core is AppKit-free and everything in it is `public`.
 - `System/` is the only place that touches AX, SkyLight, ScreenCaptureKit or
   `CGEventTap`. The switcher talks to it only through the protocols in

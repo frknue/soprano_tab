@@ -580,9 +580,13 @@ Controller behavior:
   `folio-ink` and the dark themes are pinned; unknown ids resolve like `folio`
   (`AppTheme.theme(for:appearance:)`). Observers fire when a resolved palette changes,
   system flips included. `theme(forOverride:)` resolves a shortcut's override id the same
-  way. Soprano Tab never sets `NSApp.appearance`: the switcher panel, the preview and the
-  permissions window take `theme.appearance.nsAppearance`. Tests inject both settings URLs
-  and the system appearance (`start(watching: false)`).
+  way. `NSApp.appearance` follows the global theme, the same rule as Soprano and Soprano
+  Git: nil while it follows macOS (`folio`, an unknown id, or `soprano` on Soprano's
+  `folio` + `system`), else `theme.appearance.nsAppearance`, so the status-item menu and
+  any sheet or popup match pinned and third-party themes. The switcher panel, the preview
+  and the permissions window also take their theme's appearance. Tests inject both
+  settings URLs, the system appearance and the `NSApp.appearance` setter
+  (`start(watching: false)`).
 - `MenuBarController`: an `NSStatusItem` with the Folio 16 pt template glyph drawn in
   code (an open back sheet, a front sheet with a → in it, 1.5 pt round strokes; filled
   fills the front sheet and knocks the arrow out), removed while
@@ -681,7 +685,8 @@ tokens (`raised`, `hover`, `selection`, `focusMark`, `pencilTick`, `matchOnSelec
 for the empty state and the permissions headline), `Chrome` metrics and radii,
 `ChromeKeycapView`, `ChromeFieldView`, `ChromeStatusMark`, `ChromeButton`,
 `ChromeRuleView`. The accent marks only the selection (ring, tick, preview frame), the
-caret and search hits on the selected tile. Every window's appearance comes from its theme.
+caret and search hits on the selected tile: each marks where your keys go. Every window's
+appearance comes from its theme.
 
 - **Panel**: `raised`, 1 pt `borderSubtle`, radius 12, e3 shadow (the system window
   shadow on screen; the offscreen render draws `shadowE3` and its contact ring). Header
@@ -716,8 +721,9 @@ caret and search hits on the selected tile. Every window's appearance comes from
   field in SF Pro 12 with the accent caret; placeholder "Search windows". Search hits are
   Semibold ink, `matchOnSelection` on the selected tile.
 - **Empty**: New York Italic 17 `textMuted`, centered ("No windows", "No matches").
-- **Preview**: the window image at the window's frame with a 2 pt `focusMark` frame,
-  below the panel; 120 ms fade-in when `previewFadeIn`. Panel fade-out 0.15 s when
+- **Preview**: the window image at the window's frame with a 2 pt `focusMark` (accent)
+  frame, below the panel. The frame is a keyboard-focus mark: it outlines the window that
+  `↩` (or releasing the hold modifier) focuses, like the tile ring in the panel; 120 ms fade-in when `previewFadeIn`. Panel fade-out 0.15 s when
   `fadeOut`. Under Reduce Motion both are instant.
 - Panel windows: borderless, non-activating `NSPanel`, level popUpMenu, collection
   behavior `[.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]`, never

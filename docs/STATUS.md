@@ -30,7 +30,7 @@ not copied.
   permissions window with first-launch prompts.
 - Offscreen `snapshot` harness with fixture desktops (standard, crowded, windowless,
   empty, multiScreen) and the permissions window; packaging, signing and sync scripts.
-- 269 tests.
+- 275 tests.
 
 ## Next
 

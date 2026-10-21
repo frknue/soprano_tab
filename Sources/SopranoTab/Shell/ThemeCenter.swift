@@ -9,9 +9,11 @@ import SopranoTabCore
 /// - `folio` follows the macOS appearance; `folio-paper`, `folio-ink` and the third-party
 ///   themes are pinned. Unknown ids resolve like `folio`.
 ///
-/// Soprano Tab never sets `NSApp.appearance`; each window takes its appearance from its
-/// resolved theme. Observers fire when a resolved palette changes, including when macOS
-/// flips between light and dark.
+/// `NSApp.appearance` follows the global theme (the same rule as Soprano and Soprano Git):
+/// nil while it follows macOS, else the theme's appearance, so the status-item menu and any
+/// sheet or popup match pinned and third-party themes. Each window also takes its appearance
+/// from its resolved theme. Observers fire when a resolved palette changes, including when
+/// macOS flips between light and dark.
 @MainActor
 final class ThemeCenter {
     static let shared = ThemeCenter()
@@ -23,6 +25,7 @@ final class ThemeCenter {
 
     private let settingsCenter: SettingsCenter
     private let systemAppearance: @MainActor () -> AppTheme.Appearance
+    private let setApplicationAppearance: @MainActor (NSAppearance?) -> Void
     /// Soprano's theme and appearance; kept up to date only while something follows it.
     private var soprano = SopranoThemeFile()
     private var sopranoTheme: AppTheme
@@ -32,15 +35,22 @@ final class ThemeCenter {
     private let observers = ObserverList<Void>()
     private var isStarted = false
 
-    /// `systemAppearance` is the macOS appearance; tests inject it.
+    /// `systemAppearance` is the macOS appearance and `setApplicationAppearance` sets
+    /// `NSApp.appearance`; tests inject both.
     init(
         sopranoSettingsURL: URL = SettingsFile.sopranoURL(),
         settings: SettingsCenter = .shared,
-        systemAppearance: @escaping @MainActor () -> AppTheme.Appearance = { AppTheme.Appearance(NSApp.effectiveAppearance) }
+        systemAppearance: @escaping @MainActor () -> AppTheme.Appearance = { AppTheme.Appearance(NSApp.effectiveAppearance) },
+        setApplicationAppearance: @escaping @MainActor (NSAppearance?) -> Void = { appearance in
+            if NSApp.appearance?.name != appearance?.name {
+                NSApp.appearance = appearance
+            }
+        }
     ) {
         self.sopranoSettingsURL = sopranoSettingsURL
         self.settingsCenter = settings
         self.systemAppearance = systemAppearance
+        self.setApplicationAppearance = setApplicationAppearance
         let initial = AppTheme.theme(for: AppTheme.folioId, appearance: systemAppearance())
         theme = initial
         sopranoTheme = initial
@@ -96,6 +106,11 @@ final class ThemeCenter {
             soprano = readSoprano()
         }
         let previous = (theme.id, sopranoTheme.id)
+        // Unpin first, so `systemAppearance` reads macOS again before `folio` resolves.
+        let followsSystem = Self.followsSystem(settings.theme, soprano: soprano)
+        if followsSystem {
+            setApplicationAppearance(nil)
+        }
         let sopranoAppearance: AppTheme.Appearance = switch soprano.appearance {
         case .system: systemAppearance()
         case .light: .light
@@ -103,9 +118,22 @@ final class ThemeCenter {
         }
         sopranoTheme = AppTheme.theme(for: soprano.themeID, appearance: sopranoAppearance)
         theme = resolve(settings.theme)
+        if !followsSystem {
+            setApplicationAppearance(theme.appearance.nsAppearance)
+        }
         if previous != (theme.id, sopranoTheme.id) {
             observers.notify(())
         }
+    }
+
+    /// Whether the global theme `id` resolves from the macOS appearance: `folio` or an
+    /// unknown id, or `soprano` while Soprano uses `folio` with the `system` appearance.
+    private static func followsSystem(_ id: String, soprano: SopranoThemeFile) -> Bool {
+        let isPalette = { (id: String) in AppTheme.allThemes.contains { $0.id == id } }
+        if id == "soprano" {
+            return !isPalette(soprano.themeID) && soprano.appearance == .system
+        }
+        return !isPalette(id)
     }
 
     private func reloadSoprano() {

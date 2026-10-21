@@ -2,8 +2,9 @@ import AppKit
 import SopranoTabCore
 
 /// The selected window's preview: its image at the window's own frame with a 2 pt
-/// `focusMark` frame (it marks the selection, like the tile ring), in a borderless,
-/// click-through, non-activating window one level below the switcher panel.
+/// `focusMark` (accent) frame, in a borderless, click-through, non-activating window one
+/// level below the switcher panel. The frame is a keyboard-focus mark: it outlines the
+/// window your keys will focus, like the tile ring.
 @MainActor
 final class PreviewOverlay {
     static let frameWidth: CGFloat = Chrome.focusMarkWidth

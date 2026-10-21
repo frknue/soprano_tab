@@ -282,8 +282,11 @@ enum SnapshotCommand {
     static func render(_ options: Options) throws -> (image: CGImage, report: SnapshotReport) {
         let settings = try resolveSettings(options)
         let theme = harnessTheme(settings.theme)
-        // Popovers and text the theme does not draw follow the harness app's appearance.
+        // Popovers and text the theme does not draw follow the app's appearance; restore it
+        // afterwards so callers in the same process (tests) keep their own.
+        let previousAppearance = NSApplication.shared.appearance
         NSApplication.shared.appearance = theme.appearance.nsAppearance
+        defer { NSApplication.shared.appearance = previousAppearance }
 
         if options.onboarding {
             let accessibility = options.accessibilityGranted

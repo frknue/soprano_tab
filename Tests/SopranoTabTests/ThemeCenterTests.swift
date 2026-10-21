@@ -9,6 +9,8 @@ struct ThemeCenterTests {
     @MainActor
     private final class SystemBox {
         var appearance: AppTheme.Appearance
+        /// What the center last set `NSApp.appearance` to (`.some(nil)` = follow macOS).
+        var applicationAppearance: NSAppearance.Name??
 
         init(_ appearance: AppTheme.Appearance) {
             self.appearance = appearance
@@ -38,7 +40,12 @@ struct ThemeCenterTests {
         let settings = SettingsCenter(fileURL: tabURL)
         settings.start(watching: false)
         let box = SystemBox(system)
-        let center = ThemeCenter(sopranoSettingsURL: sopranoURL, settings: settings, systemAppearance: { box.appearance })
+        let center = ThemeCenter(
+            sopranoSettingsURL: sopranoURL,
+            settings: settings,
+            systemAppearance: { box.appearance },
+            setApplicationAppearance: { box.applicationAppearance = .some($0?.name) }
+        )
         center.start(watching: false)
         return Fixture(directory: directory, tabURL: tabURL, sopranoURL: sopranoURL, settings: settings, system: box, center: center)
     }
@@ -93,5 +100,50 @@ struct ThemeCenterTests {
         #expect(fixture.center.theme(forOverride: "soprano").id == AppTheme.folioInk.id)
         #expect(fixture.center.theme(forOverride: "folio-paper").id == AppTheme.folioPaper.id)
         #expect(fixture.center.theme(forOverride: nil).id == AppTheme.folioPaper.id)
+    }
+
+    @Test("the app appearance is unset while the global theme follows macOS and pinned otherwise")
+    func applicationAppearanceFollowsTheGlobalTheme() throws {
+        let cases: [(tab: String, soprano: String?, expected: NSAppearance.Name?)] = [
+            (#"{ "theme": "folio" }"#, nil, nil),
+            (#"{ "theme": "soprano" }"#, #"{ "theme": "folio", "appearance": "system" }"#, nil),
+            (#"{ "theme": "soprano" }"#, #"{ "theme": "folio", "appearance": "light" }"#, .aqua),
+            (#"{ "theme": "soprano" }"#, #"{ "theme": "nord", "appearance": "system" }"#, .darkAqua),
+            (#"{ "theme": "folio-ink" }"#, nil, .darkAqua),
+            (#"{ "theme": "folio-paper" }"#, nil, .aqua),
+            (#"{ "theme": "dracula" }"#, nil, .darkAqua),
+        ]
+        for (tab, soprano, expected) in cases {
+            let fixture = try makeFixture(tab: tab, soprano: soprano, system: .dark)
+            defer { try? FileManager.default.removeItem(at: fixture.directory) }
+            #expect(fixture.system.applicationAppearance == .some(expected), "\(tab) \(soprano ?? "")")
+        }
+    }
+
+    @Test("by default the center sets the real NSApp.appearance")
+    func defaultSetterDrivesTheApplication() throws {
+        let app = NSApplication.shared
+        let original = app.appearance
+        defer { app.appearance = original }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("soprano-tab-theme-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let tabURL = directory.appendingPathComponent("tab.json")
+        try SettingsFile.write(#"{ "theme": "folio-ink" }"#, to: tabURL)
+        let settings = SettingsCenter(fileURL: tabURL)
+        settings.start(watching: false)
+        let center = ThemeCenter(
+            sopranoSettingsURL: directory.appendingPathComponent("soprano.json"),
+            settings: settings,
+            systemAppearance: { .light }
+        )
+        center.start(watching: false)
+        #expect(app.appearance?.name == .darkAqua)
+
+        try SettingsFile.write(#"{ "theme": "folio" }"#, to: tabURL)
+        settings.reload()
+        #expect(app.appearance == nil)
+        #expect(center.theme.id == AppTheme.folioPaper.id)
     }
 }

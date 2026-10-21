@@ -95,6 +95,16 @@ struct SnapshotCommandTests {
         #expect(result.report.query == "")
     }
 
+    @Test("rendering leaves the process's app appearance as it found it")
+    func renderRestoresAppAppearance() throws {
+        let app = NSApplication.shared
+        let original = app.appearance
+        defer { app.appearance = original }
+        app.appearance = nil
+        _ = try Command.render(try parse(["--theme", "folio-ink"]))
+        #expect(app.appearance == nil)
+    }
+
     @Test("releasing the hold modifier focuses the selection and closes the switcher")
     func renderRelease() throws {
         let result = try Command.render(try parse(["--keys", "release"]))

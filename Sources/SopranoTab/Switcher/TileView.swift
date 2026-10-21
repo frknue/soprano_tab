@@ -25,6 +25,11 @@ final class TileView: FlippedView {
     /// fullscreen on a window's tile, quit alone on a windowless app's tile.
     private(set) var controls: [TileControl] = []
 
+    /// The selected thumbnail or app-icon tile shows the accent ring (for tests).
+    var showsSelectionRing: Bool { !ring.isHidden }
+    /// The title as drawn, with its colour, weight and search hits (for tests).
+    var titleText: NSAttributedString { titleLabel.attributedStringValue }
+
     var onClick: ((Int) -> Void)?
     var onControl: ((Int, TileControl) -> Void)?
 
@@ -417,17 +422,31 @@ final class TileView: FlippedView {
 /// In the titles style it has no fill and no shadow.
 final class LampChipView: FlippedView {
     private var fill: NSColor?
+    private var elevation: ThemeShadow?
 
     func configure(fill: NSColor?, shadow: ThemeShadow?) {
         self.fill = fill
-        if let shadow, let layer {
-            shadow.apply(to: layer)
+        elevation = shadow
+        applyShadow()
+        needsDisplay = true
+    }
+
+    /// `ThemeShadow` reads the layer tree's flipping to cast downward, so it is applied
+    /// again whenever the chip moves between the image well and the title row.
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        applyShadow()
+    }
+
+    private func applyShadow() {
+        guard let layer else { return }
+        if let elevation {
+            elevation.apply(to: layer)
             // Flush in the image's corner: the shadow without the contact ring.
             layer.borderWidth = 0
         } else {
-            layer?.shadowOpacity = 0
+            layer.shadowOpacity = 0
         }
-        needsDisplay = true
     }
 
     override func layout() {
