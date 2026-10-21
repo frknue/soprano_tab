@@ -2,6 +2,14 @@ import CoreGraphics
 import Foundation
 
 extension TileLayout {
+    /// Gap between a selected tile and its accent ring (CSS `outline-offset`).
+    public static let selectionRingGap: CGFloat = 3
+    /// Width of the selected tile's accent ring.
+    public static let selectionRingWidth: CGFloat = 2
+    /// Room around the tiles inside `contentFrame`, so the ring of an edge tile is never
+    /// clipped by the scroll view.
+    public static let selectionRingMargin: CGFloat = selectionRingGap + selectionRingWidth
+
     /// Lays out the panel for `input` (docs/ARCHITECTURE.md → Layout). Every frame is
     /// integral; the panel stays within 90% × 80% of the screen and is at least 360 wide
     /// (unless 90% of the screen is narrower). Rows that do not fit scroll inside
@@ -28,8 +36,9 @@ extension TileLayout {
 
 /// Fixed metrics, in points.
 private enum TileMetrics {
+    static let topPadding: CGFloat = 12
     static let padding: CGFloat = 16
-    static let headerHeight: CGFloat = 24
+    static let headerHeight: CGFloat = 28
     static let searchHeight: CGFloat = 30
     static let stripGap: CGFloat = 8
     static let spacing: CGFloat = 8
@@ -38,8 +47,12 @@ private enum TileMetrics {
     static let defaultAspect: CGFloat = 16.0 / 10.0
     static let aspectRange: ClosedRange<CGFloat> = 0.625...2.0
     static let minThumbnailWidth: CGFloat = 140
-    /// Title strip (4 + 18 + 4) plus the image's 6 pt bottom inset, plus 1 pt of image.
-    static let minThumbnailHeight: CGFloat = 33
+    /// Thumbnail tiles: a title strip on top, the image below it inset 6 pt left, right and
+    /// bottom.
+    static let thumbnailTitleHeight: CGFloat = 22
+    static let thumbnailInset: CGFloat = 6
+    /// Title strip plus the image's bottom inset, plus 1 pt of image.
+    static let minThumbnailHeight: CGFloat = thumbnailTitleHeight + thumbnailInset + 1
 
     static func thumbnailRows(_ size: SwitcherSize) -> Int {
         switch size {
@@ -88,7 +101,7 @@ private struct PanelFrame {
         let padding = TileMetrics.padding
         maxPanelWidth = max((screenSize.width * 0.9).rounded(.down), 0)
         maxPanelHeight = max((screenSize.height * 0.8).rounded(.down), 0)
-        var top = padding + TileMetrics.headerHeight + TileMetrics.stripGap
+        var top = TileMetrics.topPadding + TileMetrics.headerHeight + TileMetrics.stripGap
         if showsSearchField { top += TileMetrics.searchHeight + TileMetrics.stripGap }
         contentTop = top
         self.showsSearchField = showsSearchField
@@ -104,20 +117,25 @@ private struct PanelFrame {
 
     func layout(resolvedSize: SwitcherSize, tiles: TileGrid, contentHeight: CGFloat) -> TileLayout {
         let padding = TileMetrics.padding
+        let margin = TileLayout.selectionRingMargin
         let width = contentWidth(rowWidth: tiles.widestRow)
         let panelSize = CGSize(width: width + 2 * padding, height: contentTop + contentHeight + padding)
-        let header = CGRect(x: padding, y: padding, width: width, height: TileMetrics.headerHeight)
+        let header = CGRect(x: padding, y: TileMetrics.topPadding, width: width, height: TileMetrics.headerHeight)
         let search = showsSearchField
             ? CGRect(x: padding, y: header.maxY + TileMetrics.stripGap, width: width, height: TileMetrics.searchHeight)
             : nil
+        // The tile area sits at (padding, contentTop); the scroll view reaches `margin`
+        // past it on every side, into the panel padding, and the tiles shift by `margin`.
+        let tileArea = CGRect(x: padding, y: contentTop, width: width, height: contentHeight)
+        let tilesHeight = tiles.items.isEmpty ? contentHeight : tiles.height
         return TileLayout(
             resolvedSize: resolvedSize,
             panelSize: panelSize,
             headerFrame: header,
             searchFieldFrame: search,
-            contentFrame: CGRect(x: padding, y: contentTop, width: width, height: contentHeight),
-            contentSize: CGSize(width: width, height: tiles.items.isEmpty ? contentHeight : tiles.height),
-            tileFrames: tiles.centered(in: width),
+            contentFrame: tileArea.insetBy(dx: -margin, dy: -margin),
+            contentSize: CGSize(width: width + 2 * margin, height: tilesHeight + 2 * margin),
+            tileFrames: tiles.centered(in: width).map { $0.offsetBy(dx: margin, dy: margin) },
             imageFrames: tiles.items.map(\.image),
             titleFrames: tiles.items.map(\.title),
             rows: tiles.rows
@@ -148,15 +166,17 @@ private struct TileGrid {
             let rowsPerScreen = CGFloat(TileMetrics.thumbnailRows(size))
             let fill = (frame.maxContentHeight - (rowsPerScreen - 1) * TileMetrics.spacing) / rowsPerScreen
             let height = max(fill.rounded(.down), TileMetrics.minThumbnailHeight)
-            let imageHeight = height - 32
+            let inset = TileMetrics.thumbnailInset
+            let titleHeight = TileMetrics.thumbnailTitleHeight
+            let imageHeight = height - titleHeight - inset
             items = input.itemSizes.map { itemSize in
                 let aspect = Self.aspect(of: itemSize)
-                let natural = (imageHeight * aspect).rounded(.down) + 12
+                let natural = (imageHeight * aspect).rounded(.down) + 2 * inset
                 let width = min(max(natural, TileMetrics.minThumbnailWidth), frame.maxContentWidth.rounded(.down))
                 return Item(
                     size: CGSize(width: width, height: height),
-                    image: CGRect(x: 6, y: 26, width: width - 12, height: imageHeight),
-                    title: CGRect(x: 6, y: 4, width: width - 12, height: 18)
+                    image: CGRect(x: inset, y: titleHeight, width: width - 2 * inset, height: imageHeight),
+                    title: CGRect(x: inset, y: 0, width: width - 2 * inset, height: titleHeight)
                 )
             }
             pack(rowHeight: height, spacing: TileMetrics.spacing, maxWidth: frame.maxContentWidth)

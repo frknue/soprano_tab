@@ -1,9 +1,11 @@
 import AppKit
 import SopranoTabCore
 
-/// Window "captures" drawn on the main actor: a title bar in the app's color with three
-/// dots and the title over content blocks seeded by the window id. Every request is
-/// answered synchronously, so the switcher shows thumbnails on its first frame.
+/// Window "captures" drawn on the main actor in the theme's mode (Folio: backdrop windows
+/// follow the page mode): a raised title bar with the macOS traffic lights and the title
+/// over content blocks seeded by the window id, the app's colour only in a few blocks.
+/// Every request is answered synchronously, so the switcher shows thumbnails on its first
+/// frame.
 @MainActor
 final class FixtureThumbnails: ThumbnailProvider {
     private struct Entry {
@@ -14,10 +16,12 @@ final class FixtureThumbnails: ThumbnailProvider {
     }
 
     private let source: FixtureWindowSource
+    private let colors: ThemeColors
     private var cache: [WindowID: Entry] = [:]
 
-    init(source: FixtureWindowSource) {
+    init(source: FixtureWindowSource, colors: ThemeColors = AppTheme.folioPaper.colors) {
         self.source = source
+        self.colors = colors
     }
 
     var canCapture: Bool { true }
@@ -55,19 +59,19 @@ final class FixtureThumbnails: ThumbnailProvider {
            entry.maxPixelSize == maxPixelSize {
             return entry.image
         }
-        guard let image = Self.render(window, maxPixelSize: maxPixelSize) else { return nil }
+        guard let image = Self.render(window, maxPixelSize: maxPixelSize, colors: colors) else { return nil }
         cache[windowID] = Entry(image: image, title: window.title, frameSize: window.frame.size, maxPixelSize: maxPixelSize)
         return image
     }
 
     /// The window drawn into an image whose longest side is `maxPixelSize` pixels.
-    static func render(_ window: WindowInfo, maxPixelSize: CGFloat) -> CGImage? {
+    static func render(_ window: WindowInfo, maxPixelSize: CGFloat, colors: ThemeColors) -> CGImage? {
         let size = window.frame.size
         guard size.width > 0, size.height > 0, maxPixelSize >= 1 else { return nil }
         let scale = maxPixelSize / max(size.width, size.height)
         guard let context = FixtureDrawing.makeContext(pointSize: size, scale: scale) else { return nil }
         FixtureDrawing.withFlippedGraphics(context) {
-            draw(window, in: CGRect(origin: .zero, size: size), context: context)
+            draw(window, in: CGRect(origin: .zero, size: size), context: context, colors: colors)
         }
         return context.makeImage()
     }
@@ -76,7 +80,7 @@ final class FixtureThumbnails: ThumbnailProvider {
     /// AppKit graphics context is flipped (`FixtureDrawing.withFlippedGraphics`). Sizes
     /// are in the window's own points, scaled to `rect`, so a window looks the same as a
     /// thumbnail and on the snapshot backdrop.
-    static func draw(_ window: WindowInfo, in rect: CGRect, context: CGContext) {
+    static func draw(_ window: WindowInfo, in rect: CGRect, context: CGContext, colors: ThemeColors) {
         let size = window.frame.size
         guard size.width > 0, size.height > 0, rect.width > 0, rect.height > 0 else { return }
         context.saveGState()
@@ -87,25 +91,27 @@ final class FixtureThumbnails: ThumbnailProvider {
         context.clip(to: bounds)
 
         var random = SeededRandom(seed: UInt64(window.windowID ?? 0))
-        let isDark = random.next() % 2 == 0
+        _ = random.next()
         let appColor = FixturePalette.color(for: window.app)
-        let ink = isDark ? NSColor.white : NSColor.black
+        let ink = colors.textPrimary
 
-        context.setFillColor(FixturePalette.color(hex: isDark ? 0x1C1E26 : 0xF5F3EE).cgColor)
+        context.setFillColor(colors.bgBase.cgColor)
         context.fill(bounds)
 
-        // Title bar: app color, traffic-light dots, centered title.
+        // Title bar: raised, the macOS traffic lights, centered title, one hairline.
         let titleBarHeight: CGFloat = 28
-        context.setFillColor(appColor.cgColor)
+        context.setFillColor(colors.raised.cgColor)
         context.fill(CGRect(x: 0, y: 0, width: size.width, height: titleBarHeight))
-        for (index, hex) in [UInt32(0xFF5F57), 0xFEBC2E, 0x28C840].enumerated() {
-            context.setFillColor(FixturePalette.color(hex: hex).cgColor)
+        context.setFillColor(colors.borderSubtle.cgColor)
+        context.fill(CGRect(x: 0, y: titleBarHeight - 1, width: size.width, height: 1))
+        for (index, color) in [TrafficLight.close, TrafficLight.minimize, TrafficLight.zoom].enumerated() {
+            context.setFillColor(color.cgColor)
             context.fillEllipse(in: CGRect(x: 12 + CGFloat(index) * 20, y: 8, width: 12, height: 12))
         }
         FixtureDrawing.drawText(
             window.displayTitle,
             font: .systemFont(ofSize: 13, weight: .semibold),
-            color: NSColor.white.withAlphaComponent(0.92),
+            color: colors.textPrimary,
             centeredIn: CGRect(x: 76, y: 0, width: max(0, size.width - 152), height: titleBarHeight)
         )
 
@@ -114,7 +120,7 @@ final class FixtureThumbnails: ThumbnailProvider {
         if random.next() % 3 != 0, content.width > 320 {
             let sidebarWidth = (content.width * (0.18 + CGFloat(random.next() % 8) / 100)).rounded()
             let sidebar = CGRect(x: 0, y: content.minY, width: sidebarWidth, height: content.height)
-            context.setFillColor(ink.withAlphaComponent(isDark ? 0.05 : 0.06).cgColor)
+            context.setFillColor(colors.bgPanel.cgColor)
             context.fill(sidebar)
             var rowY = sidebar.minY + 16
             while rowY + 12 < sidebar.maxY - 12 {
@@ -136,7 +142,7 @@ final class FixtureThumbnails: ThumbnailProvider {
             let widthFraction: CGFloat
             if roll == 0 {
                 height = 40 + CGFloat(random.next() % 80)
-                color = appColor.withAlphaComponent(0.55)
+                color = appColor.withAlphaComponent(0.35)
                 widthFraction = 0.5 + CGFloat(random.next() % 45) / 100
             } else {
                 height = 8 + CGFloat(random.next() % 8)
@@ -150,7 +156,7 @@ final class FixtureThumbnails: ThumbnailProvider {
             y += height + (roll == 0 ? 18 : 10)
         }
 
-        context.setStrokeColor(NSColor.black.withAlphaComponent(0.4).cgColor)
+        context.setStrokeColor(colors.borderStrong.cgColor)
         context.setLineWidth(1)
         context.stroke(bounds.insetBy(dx: 0.5, dy: 0.5))
     }

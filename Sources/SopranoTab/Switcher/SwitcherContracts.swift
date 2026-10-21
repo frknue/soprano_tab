@@ -5,8 +5,9 @@ import SopranoTabCore
 // (the panel and everything drawn in it). The controller builds a `SwitcherViewModel`;
 // the presenter only renders it and reports pointer and text input back.
 
-/// A control lamp shown on the hovered tile (AltTab's colored circles, drawn as lamps):
-/// close, minimize and fullscreen on a window's tile, quit on a windowless app's tile.
+/// A window control on the hovered tile (AltTab's coloured circles, in the macOS
+/// traffic-light colours): close, minimize and fullscreen on a window's tile, quit on a
+/// windowless app's tile.
 enum TileControl: Equatable, CaseIterable {
     case close
     case minimize
@@ -15,13 +16,17 @@ enum TileControl: Equatable, CaseIterable {
     case quit
 }
 
-/// Badges on a tile.
-struct TileBadges: Equatable {
-    var minimized = false
-    var hidden = false
-    var fullscreen = false
-    /// "2", or "all" for windows on every Space; nil when Space labels are off.
-    var spaceLabel: String?
+/// The header's left side: what the list shows ("All windows", an app name, "Search") and
+/// how many items it holds.
+struct SwitcherHeading: Equatable {
+    var subject: String
+    var count: Int
+}
+
+/// One header key hint: a single keycap (one chord, K1) and its word, e.g. `⇥` "next".
+struct KeyHint: Equatable {
+    var key: String
+    var label: String
 }
 
 /// One tile, ready to draw.
@@ -36,7 +41,9 @@ struct TileViewModel {
     /// nil draws the app icon centered in the image area (windowless apps, no capture yet,
     /// Screen Recording denied).
     var thumbnail: CGImage?
-    var badges: TileBadges
+    /// Chip texts on the image, in order: "Minimized", "Hidden", "Full screen", then the
+    /// Space ("Space 2", "All Spaces"); empty when the settings show none.
+    var chips: [String]
     var isWindowlessApp: Bool
 }
 
@@ -55,15 +62,15 @@ struct SwitcherViewModel {
     var tiles: [TileViewModel]
     var selectedIndex: Int?
     var hoveredIndex: Int?
-    /// Header text, e.g. "all windows", "active app", "search".
-    var heading: String
-    /// Right side of the header: key hints such as "⇥ next  ⇧ back  w close  s search".
-    var hints: String
+    var heading: SwitcherHeading
+    /// Right side of the header, in order; the header drops whole hints from the end when
+    /// it runs out of room.
+    var hints: [KeyHint]
     /// nil hides the search strip.
     var search: SearchFieldState?
     var showsWindowControls: Bool
     var titleTruncation: TitleTruncation
-    /// Shown instead of tiles when `tiles` is empty ("no windows", "no matches").
+    /// Shown instead of tiles when `tiles` is empty ("No windows", "No matches").
     var emptyText: String?
 }
 

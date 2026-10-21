@@ -2,7 +2,7 @@ import AppKit
 import SopranoTabCore
 
 /// Turns the controller's state into the `SwitcherViewModel` the presenter draws: tile
-/// titles, search highlights, badges, the header's heading and key hints, the empty text.
+/// titles, search highlights, chips, the header's heading and key hints, the empty text.
 enum SwitcherModelBuilder {
     static func model(
         session: SwitcherSession,
@@ -26,7 +26,7 @@ enum SwitcherModelBuilder {
                 appName: item.app.name,
                 icon: icons(item.app),
                 thumbnail: style == .thumbnails ? item.windowID.flatMap(thumbnails) : nil,
-                badges: badges(for: item, appearance: appearance),
+                chips: chips(for: item, appearance: appearance),
                 isWindowlessApp: item.isWindowlessApp
             )
         }
@@ -67,40 +67,40 @@ enum SwitcherModelBuilder {
         }
     }
 
-    /// What the list shows, followed by " · <count>": "all windows", the active app's name,
-    /// "other apps", "under the cursor", the name of the app under the cursor, or "search"
-    /// while searching.
-    static func heading(for filters: WindowFilters, snapshot: WindowSnapshot, isSearching: Bool, count: Int) -> String {
+    /// What the list shows and its count: "All windows", the active app's name, "Other
+    /// apps", "Under the cursor", the name of the app under the cursor, or "Search" while
+    /// searching.
+    static func heading(for filters: WindowFilters, snapshot: WindowSnapshot, isSearching: Bool, count: Int) -> SwitcherHeading {
         let subject: String
         if isSearching {
-            subject = "search"
+            subject = "Search"
         } else {
             switch filters.apps {
             case .all:
-                subject = "all windows"
+                subject = "All windows"
             case .active:
-                subject = activeAppName(in: snapshot) ?? "active app"
+                subject = activeAppName(in: snapshot) ?? "Active app"
             case .nonActive:
-                subject = "other apps"
+                subject = "Other apps"
             case .underCursor:
-                subject = "under the cursor"
+                subject = "Under the cursor"
             case .appUnderCursor:
-                subject = appUnderCursorName(in: snapshot) ?? "under the cursor"
+                subject = appUnderCursorName(in: snapshot) ?? "Under the cursor"
             }
         }
-        return "\(subject) · \(count)"
+        return SwitcherHeading(subject: subject, count: count)
     }
 
-    /// Key hints from the bound keys, e.g. "⇥ next  ⇧ back  ↩ open  W close  M min  Q quit
-    /// S search". Unbound keys drop out; "next" needs a shortcut (the gesture has none);
-    /// "search" only shows with `searchHint`.
-    static func hints(controls: ControlSettings, shortcut: ShortcutSettings?, searchHint: Bool) -> String {
-        var parts: [String] = []
+    /// Key hints from the bound keys, one keycap each: `⇥` next, `⇧` back, `↩` open,
+    /// `W` close, `M` min, `Q` quit, `S` search. Unbound keys drop out; "next" needs a
+    /// shortcut (the gesture has none); "search" only shows with `searchHint`.
+    static func hints(controls: ControlSettings, shortcut: ShortcutSettings?, searchHint: Bool) -> [KeyHint] {
+        var hints: [KeyHint] = []
         if let shortcut {
-            parts.append("\(shortcut.key.symbol) next")
+            hints.append(KeyHint(key: shortcut.key.symbol, label: "next"))
         }
         if !controls.previous.isEmpty {
-            parts.append("\(controls.previous.symbols) back")
+            hints.append(KeyHint(key: controls.previous.symbols, label: "back"))
         }
         let labeled: [(KeySpec?, String)] = [
             (controls.focus, "open"),
@@ -110,9 +110,9 @@ enum SwitcherModelBuilder {
             (searchHint ? controls.search : nil, "search"),
         ]
         for case let (key?, label) in labeled {
-            parts.append("\(key.symbol) \(label)")
+            hints.append(KeyHint(key: key.symbol, label: label))
         }
-        return parts.joined(separator: "  ")
+        return hints
     }
 
     private static func highlightedRanges(of query: String, in title: String) -> [NSRange] {
@@ -120,21 +120,27 @@ enum SwitcherModelBuilder {
         return match.ranges.map { NSRange($0, in: title) }
     }
 
-    private static func badges(for item: WindowInfo, appearance: AppearanceSettings) -> TileBadges {
-        var badges = TileBadges()
+    /// Chip texts per `statusIcons` and `spaceLabels`: "Minimized", "Hidden", "Full
+    /// screen", then "All Spaces" or "Space <first index>".
+    private static func chips(for item: WindowInfo, appearance: AppearanceSettings) -> [String] {
+        var chips: [String] = []
         if appearance.statusIcons {
-            badges.minimized = item.isMinimized
-            badges.hidden = item.isHidden
-            badges.fullscreen = item.isFullscreen
+            if item.isMinimized { chips.append("Minimized") }
+            if item.isHidden { chips.append("Hidden") }
+            if item.isFullscreen { chips.append("Full screen") }
         }
         if appearance.spaceLabels, !item.isWindowlessApp {
-            badges.spaceLabel = item.isOnAllSpaces ? "all" : item.spaceIndexes.first.map(String.init)
+            if item.isOnAllSpaces {
+                chips.append("All Spaces")
+            } else if let space = item.spaceIndexes.first {
+                chips.append("Space \(space)")
+            }
         }
-        return badges
+        return chips
     }
 
     private static func emptyText(for session: SwitcherSession) -> String {
-        session.isSearching && !session.query.isEmpty ? "no matches" : "no windows"
+        session.isSearching && !session.query.isEmpty ? "No matches" : "No windows"
     }
 
     private static func activeAppName(in snapshot: WindowSnapshot) -> String? {

@@ -2,8 +2,8 @@
 
 **A window switcher for macOS, in the Soprano family.**
 
-Soprano Tab is a copy of [AltTab](https://alt-tab.app/features) in Soprano's "Mission
-Control" chrome: `⌥⇥` shows every window, not just every app, with thumbnails, app icons
+Soprano Tab is a copy of [AltTab](https://alt-tab.app/features) in Soprano's Folio
+chrome (Paper in light mode, Ink in dark mode): `⌥⇥` shows every window, not just every app, with thumbnails, app icons
 or titles. Search, preview, close, minimize or quit right from the switcher, set up to 9
 shortcuts with their own filters, or swipe on the trackpad. It lives in the menu bar and
 has no Dock icon.
@@ -24,7 +24,7 @@ window while one is missing:
   switcher shows app icons.
 
 Later launches open the permissions window again only while Accessibility is missing.
-The icon in the menu bar (two offset squares) means it is running. Launch at login is on
+The icon in the menu bar (two offset sheets with an arrow) means it is running. Launch at login is on
 by default.
 
 ## The first minute
@@ -38,22 +38,23 @@ by default.
 
 ## The switcher
 
-- **Header**: what the list shows and how many, e.g. `all windows · 12`, the active app's
-  name (`Safari · 3`), `other apps`, `under the cursor`, or `search · 2` while searching.
-  On the right, hints for the bound keys: `⇥ next  ⇧ back  ↩ open  W close  M min  Q quit
-  S search`.
+- **Header**: what the list shows and how many, e.g. `All windows · 12`, the active app's
+  name (`Safari · 3`), `Other apps`, `Under the cursor`, or `Search · 2` while searching.
+  On the right, a keycap hint for each bound key: `⇥` next, `⇧` back, `↩` open, `W` close,
+  `M` min, `Q` quit, `S` search; when the panel is narrow, hints drop from the end.
 - **Styles**: thumbnails of each window (default), large app icons, or a list of titles.
   Size small, medium, large, or auto (the largest size where every window fits).
 - **Every window**: windows on other Spaces and screens, minimized and hidden windows,
   fullscreen windows, and apps with no open window (listed at the end; selecting one
   brings the app forward so it can open a window).
-- **Badges** on each tile: `min`, `hidden`, `full`, and optionally the Space number
-  (`all` for windows on every Space).
-- **Window controls**: hovering a tile shows close (red), minimize (yellow) and fullscreen
-  (green) lamps; hovering an app without windows shows one quit (red) lamp.
+- **Chips** on each tile: `Minimized`, `Hidden`, `Full screen`, and optionally the Space
+  (`Space 2`, or `All Spaces` for windows on every Space).
+- **Window controls**: hovering a tile shows close, minimize and full-screen buttons in the
+  macOS traffic-light colours on the thumbnail's top-left corner; hovering an app without
+  windows shows one quit button.
 - **Search**: press `S` while the switcher is open and type; matches on the window title
   or app name, fuzzy, accent-insensitive, several words all need to match. Matched
-  letters are highlighted. `no matches` when nothing fits.
+  letters are highlighted. `No matches` when nothing fits.
 - **Preview**: optionally shows the selected window full size at its position behind the
   switcher.
 - **Screens and Spaces**: the switcher opens on the screen of the focused window (or the
@@ -86,7 +87,7 @@ into the search field. Releasing `⌥` while searching keeps the switcher open, 
 let go to type. Keys that do nothing are swallowed, never passed to the app behind.
 
 Mouse: hovering highlights a tile (and selects it with `mouse.hoverSelects`), a click
-switches to it, and the lamps on the hovered tile close, minimize or fullscreen its window,
+switches to it, and the window controls on the hovered tile close, minimize or fullscreen its window,
 or quit an app without windows.
 
 ## Shortcuts
@@ -133,7 +134,10 @@ A file that is not valid JSON keeps the last good settings running.
 
 ```jsonc
 {
-  // A Soprano theme id, or "soprano" to follow Soprano's own theme setting.
+  // "soprano" follows Soprano's theme and appearance; "folio" follows macOS (Folio Paper
+  // in light mode, Folio Ink in dark mode); or pin "folio-paper", "folio-ink" or a dark
+  // theme: gruvbox-dark, catppuccin-mocha, dracula, solarized-dark, nord, tokyo-night,
+  // atom-one-dark.
   "theme": "soprano",
 
   // 1 to 9 shortcuts. Present → replaces both defaults.
@@ -194,9 +198,9 @@ A file that is not valid JSON keeps the last good settings running.
     "screen": "active",             // active (focused window's screen), withMouse, withMenuBar
     "titles": "windowTitle",        // windowTitle, appName, appNameAndWindowTitle
     "titleTruncation": "end",       // start, middle, end
-    "windowControls": true,         // close / minimize / fullscreen lamps on hover, quit for windowless apps
-    "spaceLabels": false,           // Space number badges
-    "statusIcons": true,            // min / hidden / full badges
+    "windowControls": true,         // close / minimize / fullscreen controls on hover, quit for windowless apps
+    "spaceLabels": false,           // Space 2 / All Spaces chips
+    "statusIcons": true,            // Minimized / Hidden / Full screen chips
     "showDelayMs": 100,             // 0–2000; a quicker tap switches without showing the panel
     "fadeOut": false,               // fade the panel out when it closes
     "previewSelectedWindow": false, // show the selected window full size behind the panel
@@ -297,8 +301,8 @@ Soprano Tab, and Quit Soprano Tab (`⌘Q`).
 ## Permissions
 
 The permissions window (first launch, Permissions… in the menu, and reopening the app
-while one is missing) shows each permission with a lamp, green when granted and red when
-missing, and an Open System Settings button. It updates as soon as you grant one.
+while one is missing) shows each permission with a mark, a green dot when granted and a red
+diamond when missing, and an Open System Settings button. It updates as soon as you grant one.
 
 - **Accessibility** is required. Without it no shortcut works.
 - **Screen Recording** gives thumbnails and the preview; without it the switcher shows app
@@ -329,5 +333,4 @@ copied.
 
 ## License
 
-[MIT](LICENSE). Departure Mono is © Helena Zhang, SIL Open Font License
-(`Support/Licenses/LICENSE-departure-mono`).
+[MIT](LICENSE).

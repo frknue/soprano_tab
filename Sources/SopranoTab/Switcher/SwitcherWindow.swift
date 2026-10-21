@@ -12,6 +12,11 @@ final class SwitcherWindow: SwitcherPresenting {
 
     static let fadeOutDuration: TimeInterval = 0.15
 
+    /// Folio motion: every fade is 0 under Reduce Motion.
+    static var reducesMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     private(set) var isPresented = false
     var onHover: ((Int?) -> Void)?
     var onClick: ((Int) -> Void)?
@@ -78,7 +83,7 @@ final class SwitcherWindow: SwitcherPresenting {
         isPresented = false
         generation += 1
         let dismissal = generation
-        guard animated, panel.isVisible, !isOffscreen else {
+        guard animated, panel.isVisible, !isOffscreen, !Self.reducesMotion else {
             panel.orderOut(nil)
             return
         }
@@ -96,8 +101,8 @@ final class SwitcherWindow: SwitcherPresenting {
             preview.hide()
             return
         }
-        let accent = (model?.theme ?? .missionControl).colors.accent
-        preview.show(image, frame: frame, accent: accent, fadeIn: fadeIn, onScreen: !isOffscreen && isPresented)
+        let theme = model?.theme ?? .folioPaper
+        preview.show(image, frame: frame, theme: theme, fadeIn: fadeIn, onScreen: !isOffscreen && isPresented)
     }
 
     func setSearchFocused(_ focused: Bool) {
@@ -153,7 +158,7 @@ final class SwitcherWindow: SwitcherPresenting {
         }
         preview.draw(in: context, convert: local)
         let panelRect = local(Self.panelFrame(size: model.layout.panelSize, centeredIn: screen.visibleFrame))
-        content.render(in: context, at: panelRect.origin)
+        content.render(in: context, at: panelRect.origin, shadow: model.theme.colors.shadowE3)
         return context.makeImage()
     }
 
@@ -170,6 +175,7 @@ final class SwitcherWindow: SwitcherPresenting {
                 panel.setFrame(frame, display: false)
             }
         }
+        panel.appearance = model.theme.appearance.nsAppearance
         content.apply(model, scale: scale, searchFocused: isSearchFocused)
         panel.invalidateShadow()
     }

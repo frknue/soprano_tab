@@ -21,17 +21,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionsWindow: PermissionsWindowController?
     private var appliedStartAtLogin: Bool?
 
-    func applicationWillFinishLaunching(_ notification: Notification) {
-        NSApp.appearance = NSAppearance(named: .darkAqua)
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !Self.anotherInstanceIsRunning() else {
             NSApp.terminate(nil)
             return
         }
-        _ = RetroFont.registerBundledFont()
-
         let settings = SettingsCenter.shared
         settings.start()
         ThemeCenter.shared.start()

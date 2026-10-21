@@ -2,7 +2,7 @@
 
 Window switcher for macOS in the Soprano family: a copy of AltTab (every window, thumbnails,
 search, preview, window actions, up to 9 shortcuts with filters, trackpad swipe, exceptions,
-command line) in Soprano's "Mission Control" chrome. Swift 6 + programmatic AppKit (no
+command line) in Soprano's Folio chrome (Paper light, Ink dark). Swift 6 + programmatic AppKit (no
 storyboards/xibs/SwiftUI), SPM, macOS 14+, menu-bar app (no Dock icon). Shipped as a
 hand-packaged `.app` via `scripts/install.sh`. GitHub:
 [`frknue/soprano_tab`](https://github.com/frknue/soprano_tab) (public).
@@ -20,6 +20,7 @@ swift test --filter SwitcherKeyRouterTests
 ./scripts/dev.sh --build-only        # package .build/debug/Soprano Tab Dev.app (com.soprano.tab.dev)
 ./scripts/install.sh                 # release build → /Applications/Soprano Tab.app
 .build/debug/SopranoTab snapshot --out /tmp/tab.png --keys "tab tab" --report /tmp/tab.json
+.build/debug/SopranoTab snapshot --out /tmp/tab-ink.png --keys "tab tab" --theme folio-ink
 .build/debug/SopranoTab snapshot --out /tmp/perm.png --onboarding --permissions accessibility=missing,screen=granted
 .build/debug/SopranoTab list         # no bundle → falls back to com.soprano.tab: talks to the INSTALLED app
 ```
@@ -45,6 +46,8 @@ formatter; match surrounding style.
                              [--report <json>]
     key tokens: tab shift+tab shift release left right up down return escape <letter>
   ```
+- Snapshots render Folio Paper by default (they never read Soprano's settings or the Mac's
+  mode); check a visual change in Ink too with `--theme folio-ink`.
 - Never launch the GUI or run `./scripts/dev.sh` without `--build-only` unless the user
   asks: the app asks for Accessibility and Screen Recording and grabs `⌥⇥` system-wide.
 
@@ -88,10 +91,12 @@ copied or not built.
 
 ## Conventions
 
-- Chrome comes from Soprano: square corners, `ThemeColors` tokens only, Departure Mono via
-  `RetroFont.display` at 11 or 22 pt only (small caps; never uppercase strings by hand),
-  `RetroFont.body` for running text, `RetroLamp` the only round chrome. Appearance is
-  forced dark.
+- Chrome comes from Soprano's vendored `Chrome.swift` and `Theme.swift` (Folio spec in
+  Soprano `docs/design/2026-10-21-calm-family/b/`): `ThemeColors` and its derived tokens
+  only, system fonts through `ChromeFont` (New York only at 15 pt or more), radii and sizes
+  from `Chrome`. The accent marks the selection (ring, tick, preview frame), the caret and
+  search hits on the selected tile. Every window takes `theme.appearance.nsAppearance`
+  from its resolved theme; `NSApp.appearance` stays unset so `folio` follows macOS.
 - Core is AppKit-free and everything in it is `public`.
 - `System/` is the only place that touches AX, SkyLight, ScreenCaptureKit or
   `CGEventTap`. The switcher talks to it only through the protocols in
@@ -111,12 +116,10 @@ copied or not built.
 
 ## Gotchas
 
-- `Sources/SopranoTab/Vendored/` and `Sources/SopranoTabCore/Vendored/JSONCText.swift` are
-  copied from Soprano by `scripts/sync-soprano-chrome.sh` (committed Soprano state only;
-  source commit in `Vendored/SOPRANO_COMMIT`). Never edit them here: change Soprano,
-  commit there, re-run the script.
-- `SopranoResources` (App/) keeps Soprano's name so vendored files compile unchanged; the
-  SPM resource bundle is `SopranoTab_SopranoTab.bundle`.
+- `Sources/SopranoTab/Vendored/`, `Sources/SopranoTabCore/Vendored/JSONCText.swift` and
+  `scripts/render-app-icon.swift` are copied from Soprano by `scripts/sync-soprano-chrome.sh`
+  (committed Soprano state only; source commit in `Vendored/SOPRANO_COMMIT`). Never edit
+  them here: change Soprano, commit there, re-run the script.
 - Private APIs (SkyLight, HIServices) go only through `System/PrivateAPIs.swift` via
   `dlsym`. Any of them may vanish in a macOS update; every caller handles the nil path.
 - TCC grants (Accessibility, Screen Recording) are tied to the signing identity. Sign with

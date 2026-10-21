@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Copies Soprano's design system and shared infrastructure into this repo.
-# Soprano is the source of truth: never edit the files under
-# Sources/SopranoTab/Vendored/ or Sources/SopranoTabCore/Vendored/ here. Change
-# them in Soprano, commit there, then re-run this script.
+# Copies Soprano's design system, shared infrastructure and the family's app icon
+# renderer into this repo. Soprano is the source of truth: never edit the files under
+# Sources/SopranoTab/Vendored/, Sources/SopranoTabCore/Vendored/ or
+# scripts/render-app-icon.swift here. Change them in Soprano, commit there, then re-run
+# this script.
 #
 # Usage: scripts/sync-soprano-chrome.sh [soprano-checkout] [ref]
 #   soprano-checkout  absolute path; defaults to $SOPRANO_DIR or ~/git/private/soprano
@@ -28,13 +29,12 @@ commit="$(git -C "$soprano_dir" rev-parse "$ref^{commit}")"
 
 # source path in Soprano  →  destination path in this repo
 files=(
-    "Sources/Soprano/Views/RetroChrome.swift|Sources/SopranoTab/Vendored/RetroChrome.swift"
+    "Sources/Soprano/Views/Chrome.swift|Sources/SopranoTab/Vendored/Chrome.swift"
     "Sources/Soprano/Config/Theme.swift|Sources/SopranoTab/Vendored/Theme.swift"
     "Sources/Soprano/Utilities/NSColor+Hex.swift|Sources/SopranoTab/Vendored/NSColor+Hex.swift"
     "Sources/Soprano/Utilities/AppVersion.swift|Sources/SopranoTab/Vendored/AppVersion.swift"
     "Sources/Soprano/Config/JSONCText.swift|Sources/SopranoTabCore/Vendored/JSONCText.swift"
-    "Sources/Soprano/Resources/DepartureMono-Regular.woff2|Sources/SopranoTab/Resources/DepartureMono-Regular.woff2"
-    "Support/Licenses/LICENSE-departure-mono|Support/Licenses/LICENSE-departure-mono"
+    "scripts/render-app-icon.swift|scripts/render-app-icon.swift"
 )
 
 staging="$(mktemp -d)"

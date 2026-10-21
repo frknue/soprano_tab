@@ -1,12 +1,14 @@
 import AppKit
 import SopranoTabCore
 
-/// The selected window's preview: its image at the window's own frame with a 2 pt `accent`
-/// frame, in a borderless, click-through, non-activating window one level below the
-/// switcher panel.
+/// The selected window's preview: its image at the window's own frame with a 2 pt
+/// `focusMark` frame (it marks the selection, like the tile ring), in a borderless,
+/// click-through, non-activating window one level below the switcher panel.
 @MainActor
 final class PreviewOverlay {
-    static let frameWidth: CGFloat = 2
+    static let frameWidth: CGFloat = Chrome.focusMarkWidth
+    /// Folio motion: the Tab preview fades in over 120 ms, opacity only; never under
+    /// Reduce Motion.
     static let fadeInDuration: TimeInterval = 0.12
 
     private let window = SwitcherPanel(level: SwitcherPanel.previewLevel)
@@ -16,7 +18,7 @@ final class PreviewOverlay {
     private(set) var image: CGImage?
     /// The previewed window's frame, global Quartz coordinates.
     private(set) var frame: CGRect?
-    private var accent = AppTheme.missionControl.colors.accent
+    private var accent = AppTheme.folioPaper.colors.focusMark
 
     var isShown: Bool { image != nil && frame != nil }
 
@@ -32,11 +34,12 @@ final class PreviewOverlay {
 
     /// Shows `image` at `frame` (Quartz). With `onScreen` false the window is only
     /// configured, for offscreen rendering.
-    func show(_ image: CGImage, frame: CGRect, accent: NSColor, fadeIn: Bool, onScreen: Bool) {
+    func show(_ image: CGImage, frame: CGRect, theme: AppTheme, fadeIn: Bool, onScreen: Bool) {
         let wasVisible = window.isVisible
         self.image = image
         self.frame = frame
-        self.accent = accent
+        accent = theme.colors.focusMark
+        window.appearance = theme.appearance.nsAppearance
         let primaryHeight = NSScreen.screens.first?.frame.height ?? frame.maxY
         window.setFrame(Geometry.appKitRect(fromQuartz: frame, primaryHeight: primaryHeight), display: false)
         CATransaction.begin()
@@ -46,7 +49,7 @@ final class PreviewOverlay {
         imageView.layer?.borderColor = accent.cgColor
         CATransaction.commit()
         guard onScreen else { return }
-        if fadeIn && !wasVisible {
+        if fadeIn && !wasVisible && !SwitcherWindow.reducesMotion {
             window.alphaValue = 0
             window.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { context in

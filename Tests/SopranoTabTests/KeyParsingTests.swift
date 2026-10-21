@@ -57,10 +57,11 @@ struct KeyParsingTests {
         #expect(KeySpec(settingsText: "ctrl") == nil)
     }
 
-    @Test("symbols show glyphs for named keys and uppercase characters")
+    @Test("symbols are keycap legends: glyphs, lowercase esc and uppercase characters")
     func symbols() {
         #expect(KeySpec.named(.tab).symbol == "⇥")
         #expect(KeySpec.named(.return).symbol == "↩")
+        #expect(KeySpec.named(.escape).symbol == "esc")
         #expect(KeySpec.named(.keyAboveTab).symbol == "`")
         #expect(KeySpec.named(.f12).symbol == "F12")
         #expect(KeySpec.character("w").symbol == "W")

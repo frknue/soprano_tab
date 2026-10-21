@@ -79,7 +79,7 @@ extension KeySpec {
         }
     }
 
-    /// ⇥ ␣ ↩ ⎋ ⌫ ⌦ ← → ↑ ↓ ↖ ↘ ⇞ ⇟ ` F1…F12; characters uppercased ("W").
+    /// Keycap legend (K1): ⇥ ␣ ↩ esc ⌫ ⌦ ← → ↑ ↓ ↖ ↘ ⇞ ⇟ ` F1…F12; characters uppercased ("W").
     public var symbol: String {
         switch self {
         case .character(let character):
@@ -89,7 +89,7 @@ extension KeySpec {
             case .tab: return "⇥"
             case .space: return "␣"
             case .return: return "↩"
-            case .escape: return "⎋"
+            case .escape: return "esc"
             case .delete: return "⌫"
             case .forwardDelete: return "⌦"
             case .left: return "←"

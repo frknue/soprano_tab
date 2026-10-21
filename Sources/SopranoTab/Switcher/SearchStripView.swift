@@ -1,29 +1,39 @@
 import AppKit
 
-/// The search strip: a `bgRaised` box with a hairline (`accent` while the field has focus)
-/// around a borderless body-13 field. Every edit reports the whole text through `onChange`.
+/// The search strip, Folio `.search-field`: a `raised` field with a `borderStrong` edge
+/// (`fieldFocusEdge` while the field has focus, never accent), a muted magnifier and a
+/// borderless SF Pro 12 field with the accent caret. Every edit reports the whole text
+/// through `onChange`.
 final class SearchStripView: FlippedView, NSTextFieldDelegate {
-    static let placeholder = "search windows"
-    static let horizontalInset: CGFloat = 8
+    static let placeholder = "Search windows"
+    static let leadingInset: CGFloat = 8
+    static let trailingInset: CGFloat = 6
+    static let iconSide: CGFloat = 13
+    static let iconGap: CGFloat = 6
 
     let field = NSTextField()
     var onChange: ((String) -> Void)?
-    private var colors = AppTheme.missionControl.colors
+    private let surface: ChromeFieldView
+    private let icon = NSImageView()
+    private var theme = AppTheme.folioPaper
 
     init() {
+        surface = ChromeFieldView(theme: theme)
         super.init(frame: .zero)
+        surface.translatesAutoresizingMaskIntoConstraints = true
+        icon.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: Self.iconSide, weight: .regular))
+        icon.imageScaling = .scaleProportionallyDown
+        icon.setAccessibilityElement(false)
         field.translatesAutoresizingMaskIntoConstraints = true
-        field.isBordered = false
-        field.isBezeled = false
-        field.drawsBackground = false
-        field.focusRingType = .none
-        field.font = RetroFont.body(13)
         field.usesSingleLineMode = true
         field.lineBreakMode = .byTruncatingTail
         field.cell?.isScrollable = true
         field.cell?.wraps = false
         field.delegate = self
         field.setAccessibilityLabel("Search windows")
+        addSubview(surface)
+        addSubview(icon)
         addSubview(field)
     }
 
@@ -32,33 +42,45 @@ final class SearchStripView: FlippedView, NSTextFieldDelegate {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(state: SearchFieldState, focused: Bool, colors: ThemeColors) {
-        self.colors = colors
-        layer?.backgroundColor = colors.bgRaised.cgColor
-        layer?.borderWidth = Retro.hairline
-        layer?.cornerRadius = Retro.cornerRadius
+    func configure(state: SearchFieldState, focused: Bool, theme: AppTheme) {
+        self.theme = theme
+        let colors = theme.colors
+        surface.apply(theme: theme)
+        surface.frame = bounds
         setFocusedLook(focused || state.isActive)
-        field.textColor = colors.textPrimary
+        ChromeFieldView.styleEmbedded(field, colors: colors, font: ChromeFont.label)
         field.placeholderAttributedString = SwitcherText.plain(
-            Self.placeholder, font: RetroFont.body(13), color: colors.textMuted
+            Self.placeholder, font: ChromeFont.label, color: colors.textMuted
         )
+        icon.contentTintColor = colors.textMuted
         // Only push the model's text when it differs, so typing keeps its caret and selection.
         if field.stringValue != state.query {
             field.stringValue = state.query
         }
-        let height = SwitcherText.lineHeight(RetroFont.body(13)) + 2
+        icon.frame = CGRect(
+            x: Self.leadingInset,
+            y: ((bounds.height - Self.iconSide) / 2).rounded(),
+            width: Self.iconSide,
+            height: Self.iconSide
+        )
+        let fieldX = icon.frame.maxX + Self.iconGap
+        let height = SwitcherText.lineHeight(ChromeFont.label) + 2
         field.frame = CGRect(
-            x: Self.horizontalInset,
+            x: fieldX,
             y: ((bounds.height - height) / 2).rounded(),
-            width: max(0, bounds.width - Self.horizontalInset * 2),
+            width: max(0, bounds.width - fieldX - Self.trailingInset),
             height: height
         )
     }
 
-    /// The hairline turns `accent` while the field has focus.
+    /// The edge takes `fieldFocusEdge` while the field has focus; the caret is accent.
     func setFocusedLook(_ focused: Bool) {
-        layer?.borderColor = (focused ? colors.accent : colors.borderSubtle).cgColor
-        (field.currentEditor() as? NSTextView)?.insertionPointColor = colors.accent
+        surface.isFocused = focused
+        ChromeFieldView.styleEditor(of: field, colors: theme.colors)
+    }
+
+    func controlTextDidBeginEditing(_ notification: Notification) {
+        ChromeFieldView.styleEditor(of: field, colors: theme.colors)
     }
 
     func controlTextDidChange(_ notification: Notification) {

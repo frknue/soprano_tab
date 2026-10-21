@@ -42,7 +42,7 @@ struct SwitcherWindowTests {
         #expect(window.tileViews.map(\.isSelected) == [false, false, true])
     }
 
-    @Test("hover shows a window's close, minimize and fullscreen lamps, and a windowless app's quit lamp alone")
+    @Test("hover shows a window's close, minimize and full-screen controls, and a windowless app's quit control alone")
     func controlsFollowHover() {
         let window = SwitcherWindow()
         window.present(model(tiles: threeTiles(), selectedIndex: 0, hoveredIndex: 1), on: screen)
@@ -51,11 +51,13 @@ struct SwitcherWindowTests {
         window.update(model(tiles: threeTiles(), selectedIndex: 0, hoveredIndex: 2))
         #expect(window.tileViews.map(\.controls) == [[], [], [.quit]])
 
-        // The lone quit lamp starts the title strip (tile-local (6, 4, w − 12, 18), flipped),
-        // like macOS window buttons.
+        // The lone quit lamp sits on the corner chip at the image's top-left (image at
+        // tile-local (6, 22), chip padding 8 × 6), so the title keeps its full width.
         let windowless = window.tileViews[2]
-        let lampCenter = CGPoint(x: 6 + TileView.lampSide / 2, y: 4 + 18 / 2)
+        let padding = TileView.lampChipPadding
+        let lampCenter = CGPoint(x: 6 + padding.width + TileView.lampSide / 2, y: 22 + padding.height + TileView.lampSide / 2)
         #expect(windowless.control(at: lampCenter) == .quit)
+        #expect(windowless.control(at: CGPoint(x: 6 + TileView.lampSide / 2, y: 11)) == nil)
     }
 
     @Test("tiles read as title and app name to VoiceOver")
@@ -69,7 +71,7 @@ struct SwitcherWindowTests {
     @Test("an empty model renders the empty state")
     func emptyModelRenders() throws {
         let window = SwitcherWindow()
-        window.present(model(tiles: [], selectedIndex: nil, emptyText: "no windows"), on: screen)
+        window.present(model(tiles: [], selectedIndex: nil, emptyText: "No windows"), on: screen)
 
         #expect(window.tileViews.isEmpty)
         let image = try #require(window.renderSnapshot(screen: screen, backdrop: nil))
@@ -105,7 +107,7 @@ struct SwitcherWindowTests {
             appName: app,
             icon: nil,
             thumbnail: thumbnail,
-            badges: TileBadges(),
+            chips: [],
             isWindowlessApp: windowless
         )
     }
@@ -123,14 +125,14 @@ struct SwitcherWindowTests {
             itemSizes: tiles.map { _ in CGSize(width: 1200, height: 800) }
         ))
         return SwitcherViewModel(
-            theme: .missionControl,
+            theme: .folioPaper,
             style: .thumbnails,
             layout: layout,
             tiles: tiles,
             selectedIndex: selectedIndex,
             hoveredIndex: hoveredIndex,
-            heading: "all windows · \(tiles.count)",
-            hints: "⇥ next  ⇧ back",
+            heading: SwitcherHeading(subject: "All windows", count: tiles.count),
+            hints: [KeyHint(key: "⇥", label: "next"), KeyHint(key: "⇧", label: "back")],
             search: nil,
             showsWindowControls: true,
             titleTruncation: .end,

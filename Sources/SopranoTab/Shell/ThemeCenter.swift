@@ -3,84 +3,119 @@ import SopranoTabCore
 
 /// The live theme (adapted from Soprano Git's `ThemeCenter`).
 ///
-/// `theme: "soprano"` follows the `theme` key of Soprano's settings.json, watched live;
-/// Mission Control when that file or key is missing or unknown. Shortcut overrides resolve
-/// through `theme(forOverride:)`, where "soprano" follows Soprano too.
+/// - `theme: "soprano"` (the default) follows the `theme` and `appearance` keys of Soprano's
+///   settings.json, watched live: `folio` there resolves to Paper or Ink from Soprano's
+///   appearance (`system` follows macOS).
+/// - `folio` follows the macOS appearance; `folio-paper`, `folio-ink` and the third-party
+///   themes are pinned. Unknown ids resolve like `folio`.
+///
+/// Soprano Tab never sets `NSApp.appearance`; each window takes its appearance from its
+/// resolved theme. Observers fire when a resolved palette changes, including when macOS
+/// flips between light and dark.
 @MainActor
 final class ThemeCenter {
     static let shared = ThemeCenter()
 
     /// Soprano's settings.json, read while anything follows Soprano.
     let sopranoSettingsURL: URL
-    /// The global theme (settings.json `theme`).
-    private(set) var theme = AppTheme.missionControl
+    /// The global theme (settings.json `theme`), resolved.
+    private(set) var theme: AppTheme
 
     private let settingsCenter: SettingsCenter
-    /// Soprano's current theme; kept up to date only while something follows it.
-    private var sopranoTheme = AppTheme.missionControl
+    private let systemAppearance: @MainActor () -> AppTheme.Appearance
+    /// Soprano's theme and appearance; kept up to date only while something follows it.
+    private var soprano = SopranoThemeFile()
+    private var sopranoTheme: AppTheme
+    private var watchesSoprano = true
     private var sopranoWatcher: ConfigFileWatcher?
+    private var appearanceObservation: NSKeyValueObservation?
     private let observers = ObserverList<Void>()
     private var isStarted = false
 
-    init(sopranoSettingsURL: URL = SettingsFile.sopranoURL(), settings: SettingsCenter = .shared) {
+    /// `systemAppearance` is the macOS appearance; tests inject it.
+    init(
+        sopranoSettingsURL: URL = SettingsFile.sopranoURL(),
+        settings: SettingsCenter = .shared,
+        systemAppearance: @escaping @MainActor () -> AppTheme.Appearance = { AppTheme.Appearance(NSApp.effectiveAppearance) }
+    ) {
         self.sopranoSettingsURL = sopranoSettingsURL
         self.settingsCenter = settings
+        self.systemAppearance = systemAppearance
+        let initial = AppTheme.theme(for: AppTheme.folioId, appearance: systemAppearance())
+        theme = initial
+        sopranoTheme = initial
     }
 
-    /// Applies the current settings and follows their changes.
-    func start() {
+    /// Applies the current settings and follows their changes, Soprano's settings.json
+    /// (with `watching`) and the macOS appearance.
+    func start(watching: Bool = true) {
         guard !isStarted else { return }
         isStarted = true
+        watchesSoprano = watching
         apply()
         settingsCenter.addObserver(self) { [weak self] in
             self?.apply()
         }
+        if watching {
+            appearanceObservation = NSApplication.shared.observe(\.effectiveAppearance) { [weak self] _, _ in
+                Task { @MainActor [weak self] in
+                    self?.systemAppearanceDidChange()
+                }
+            }
+        }
     }
 
-    /// The theme for a shortcut's override id; nil (or an unknown id) is the global theme.
+    /// Re-resolves `folio` (and Soprano's `system` appearance) after macOS changed between
+    /// light and dark.
+    func systemAppearanceDidChange() {
+        apply()
+    }
+
+    /// The theme for a shortcut's override id; nil is the global theme.
     func theme(forOverride id: String?) -> AppTheme {
         guard let id else { return theme }
-        if id == "soprano" { return sopranoTheme }
-        return AppTheme.allThemes.first { $0.id == id } ?? theme
+        return resolve(id)
     }
 
-    /// Handlers fire after the global theme or Soprano's theme changes, until `owner` is
-    /// deallocated.
+    /// Handlers fire after the resolved global theme or Soprano's theme changes, until
+    /// `owner` is deallocated.
     func addObserver(_ owner: AnyObject, _ handler: @escaping @MainActor () -> Void) {
         observers.add(owner) { _ in handler() }
+    }
+
+    private func resolve(_ id: String) -> AppTheme {
+        id == "soprano" ? sopranoTheme : AppTheme.theme(for: id, appearance: systemAppearance())
     }
 
     private func apply() {
         let settings = settingsCenter.settings
         let followsSoprano = settings.theme == "soprano"
             || settings.shortcuts.contains { $0.overrides.theme == "soprano" }
-        updateSopranoWatcher(enabled: followsSoprano)
+        updateSopranoWatcher(enabled: followsSoprano && watchesSoprano)
         if followsSoprano {
-            sopranoTheme = readSopranoTheme()
+            soprano = readSoprano()
         }
         let previous = (theme.id, sopranoTheme.id)
-        theme = settings.theme == "soprano"
-            ? sopranoTheme
-            : AppTheme.allThemes.first { $0.id == settings.theme } ?? .missionControl
+        let sopranoAppearance: AppTheme.Appearance = switch soprano.appearance {
+        case .system: systemAppearance()
+        case .light: .light
+        case .dark: .dark
+        }
+        sopranoTheme = AppTheme.theme(for: soprano.themeID, appearance: sopranoAppearance)
+        theme = resolve(settings.theme)
         if previous != (theme.id, sopranoTheme.id) {
             observers.notify(())
         }
     }
 
-    private func reloadSopranoTheme() {
+    private func reloadSoprano() {
         guard sopranoWatcher != nil else { return }
         apply()
     }
 
-    /// Soprano's settings.json shares the top-level `theme` key and its ids, so the
-    /// public JSONC resolver reads it; every other Soprano key is ignored.
-    private func readSopranoTheme() -> AppTheme {
-        guard let text = try? SettingsFile.read(at: sopranoSettingsURL) else { return .missionControl }
-        let ids = Set(AppTheme.allThemes.map(\.id))
-        guard let id = SettingsResolver.resolve(text: text, knownThemeIDs: ids).settings?.theme else {
-            return .missionControl
-        }
-        return AppTheme.allThemes.first { $0.id == id } ?? .missionControl
+    private func readSoprano() -> SopranoThemeFile {
+        guard let text = try? SettingsFile.read(at: sopranoSettingsURL) else { return SopranoThemeFile() }
+        return SopranoThemeFile.parse(text: text, knownThemeIDs: Set(AppTheme.options.map(\.id)))
     }
 
     private func updateSopranoWatcher(enabled: Bool) {
@@ -88,7 +123,7 @@ final class ThemeCenter {
             guard sopranoWatcher == nil else { return }
             let watcher = ConfigFileWatcher(url: sopranoSettingsURL) { [weak self] in
                 Task { @MainActor [weak self] in
-                    self?.reloadSopranoTheme()
+                    self?.reloadSoprano()
                 }
             }
             watcher.start()

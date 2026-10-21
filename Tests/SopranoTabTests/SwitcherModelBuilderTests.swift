@@ -17,7 +17,7 @@ struct SwitcherModelBuilderTests {
         thumbnail: CGImage? = nil
     ) -> SwitcherViewModel {
         SwitcherModelBuilder.model(
-            session: session, layout: layout, settings: settings, theme: AppTheme.missionControl,
+            session: session, layout: layout, settings: settings, theme: AppTheme.folioPaper,
             style: style, snapshot: SwitcherTestDesktop.snapshot(), hoveredIndex: nil,
             thumbnails: { _ in thumbnail }, icons: { _ in NSImage() }
         )
@@ -41,76 +41,81 @@ struct SwitcherModelBuilderTests {
         #expect(SwitcherModelBuilder.title(for: windowless, content: .appNameAndWindowTitle) == "Notes")
     }
 
-    @Test("The heading names what the shortcut lists, or search, followed by the count")
+    @Test("The heading names what the shortcut lists, or search, with the count beside it")
     func headings() {
         let snapshot = SwitcherTestDesktop.snapshot()
-        func heading(_ apps: AppsFilter, searching: Bool = false, count: Int) -> String {
+        func heading(_ apps: AppsFilter, searching: Bool = false, count: Int) -> SwitcherHeading {
             SwitcherModelBuilder.heading(for: WindowFilters(apps: apps), snapshot: snapshot, isSearching: searching, count: count)
         }
-        #expect(heading(.all, count: 5) == "all windows · 5")
-        #expect(heading(.active, count: 2) == "Editor · 2")
-        #expect(heading(.nonActive, count: 3) == "other apps · 3")
-        #expect(heading(.underCursor, count: 3) == "under the cursor · 3")
+        #expect(heading(.all, count: 5) == SwitcherHeading(subject: "All windows", count: 5))
+        #expect(heading(.active, count: 2) == SwitcherHeading(subject: "Editor", count: 2))
+        #expect(heading(.nonActive, count: 3) == SwitcherHeading(subject: "Other apps", count: 3))
+        #expect(heading(.underCursor, count: 3) == SwitcherHeading(subject: "Under the cursor", count: 3))
         // The mouse is over windows 1, 2 and 3; window 1 (Editor) is frontmost.
-        #expect(heading(.appUnderCursor, count: 2) == "Editor · 2")
-        #expect(heading(.active, searching: true, count: 1) == "search · 1")
+        #expect(heading(.appUnderCursor, count: 2) == SwitcherHeading(subject: "Editor", count: 2))
+        #expect(heading(.active, searching: true, count: 1) == SwitcherHeading(subject: "Search", count: 1))
     }
 
-    @Test("Hints come from the bound keys and drop unbound ones")
+    @Test("Hints are one keycap per bound key, in order, and drop unbound ones")
     func hints() {
+        func pairs(_ hints: [KeyHint]) -> [String] { hints.map { "\($0.key) \($0.label)" } }
         let controls = ControlSettings()
         let shortcut = ShortcutSettings.defaults[0]
-        #expect(SwitcherModelBuilder.hints(controls: controls, shortcut: shortcut, searchHint: true)
-            == "⇥ next  ⇧ back  ↩ open  W close  M min  Q quit  S search")
-        #expect(SwitcherModelBuilder.hints(controls: controls, shortcut: shortcut, searchHint: false)
-            == "⇥ next  ⇧ back  ↩ open  W close  M min  Q quit")
+        #expect(pairs(SwitcherModelBuilder.hints(controls: controls, shortcut: shortcut, searchHint: true))
+            == ["⇥ next", "⇧ back", "↩ open", "W close", "M min", "Q quit", "S search"])
+        #expect(pairs(SwitcherModelBuilder.hints(controls: controls, shortcut: shortcut, searchHint: false))
+            == ["⇥ next", "⇧ back", "↩ open", "W close", "M min", "Q quit"])
 
         var sparse = ControlSettings()
         sparse.previous = []
         sparse.close = nil
-        #expect(SwitcherModelBuilder.hints(controls: sparse, shortcut: nil, searchHint: true)
-            == "↩ open  M min  Q quit  S search")
+        sparse.quit = .named(.escape)
+        #expect(pairs(SwitcherModelBuilder.hints(controls: sparse, shortcut: nil, searchHint: true))
+            == ["↩ open", "M min", "esc quit", "S search"])
     }
 
-    @Test("Badges follow statusIcons and spaceLabels")
-    func badges() {
+    @Test("Chips follow statusIcons and spaceLabels in sentence case")
+    func chips() {
         let minimized = SwitcherTestDesktop.windows[3]
         var everywhere = SwitcherTestDesktop.windows[0]
         everywhere.isOnAllSpaces = true
         var secondSpace = SwitcherTestDesktop.windows[1]
         secondSpace.spaceIDs = [2]
         secondSpace.spaceIndexes = [2]
-        let items = [minimized, everywhere, secondSpace]
+        var hiddenFullscreen = SwitcherTestDesktop.windows[2]
+        hiddenFullscreen.app.isHidden = true
+        hiddenFullscreen.isFullscreen = true
+        let items = [minimized, everywhere, secondSpace, hiddenFullscreen]
 
         var labeled = SopranoTabSettings()
         labeled.appearance.spaceLabels = true
-        let tiles = model(session(items), settings: labeled).tiles
-        #expect(tiles.map(\.badges) == [
-            TileBadges(minimized: true, spaceLabel: "1"),
-            TileBadges(spaceLabel: "all"),
-            TileBadges(spaceLabel: "2"),
+        #expect(model(session(items), settings: labeled).tiles.map(\.chips) == [
+            ["Minimized", "Space 1"],
+            ["All Spaces"],
+            ["Space 2"],
+            ["Hidden", "Full screen", "Space 1"],
         ])
 
         var bare = SopranoTabSettings()
         bare.appearance.statusIcons = false
-        #expect(model(session(items), settings: bare).tiles.map(\.badges) == Array(repeating: TileBadges(), count: 3))
+        #expect(model(session(items), settings: bare).tiles.map(\.chips) == Array(repeating: [], count: 4))
     }
 
-    @Test("Empty lists say no windows, or no matches while a query is typed")
+    @Test("Empty lists say No windows, or No matches while a query is typed")
     func emptyText() {
         let empty = model(session([]))
         #expect(empty.tiles.isEmpty)
-        #expect(empty.emptyText == "no windows")
-        #expect(empty.heading == "all windows · 0")
+        #expect(empty.emptyText == "No windows")
+        #expect(empty.heading == SwitcherHeading(subject: "All windows", count: 0))
         #expect(empty.search == nil)
 
         var searching = session()
         searching.beginSearch()
         searching.setQuery("zzzz")
         let noMatches = model(searching)
-        #expect(noMatches.emptyText == "no matches")
+        #expect(noMatches.emptyText == "No matches")
         #expect(noMatches.search == SearchFieldState(query: "zzzz", isActive: true))
-        #expect(noMatches.heading == "search · 0")
+        #expect(noMatches.heading == SwitcherHeading(subject: "Search", count: 0))
 
         #expect(model(session()).emptyText == nil)
     }

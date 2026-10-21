@@ -60,7 +60,7 @@ final class SettingsCenter {
             let text = try SettingsFile.read(at: fileURL)
             let resolution = SettingsResolver.resolve(
                 text: text,
-                knownThemeIDs: Set(AppTheme.allThemes.map(\.id))
+                knownThemeIDs: Set(AppTheme.options.map(\.id))
             )
             if let resolved = resolution.settings {
                 settings = resolved

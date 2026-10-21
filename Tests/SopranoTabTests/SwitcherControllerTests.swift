@@ -166,7 +166,7 @@ struct SwitcherControllerTests {
         )
         harness.pressOptionTab()
         harness.scheduler.fireAll()
-        #expect(harness.presenter.model?.emptyText == "no windows")
+        #expect(harness.presenter.model?.emptyText == "No windows")
         harness.source.mutate { $0.mouseLocation = CGPoint(x: 10, y: 10) }
         #expect(harness.controller.isActive)
         #expect(harness.presenter.isPresented)
@@ -241,7 +241,7 @@ struct SwitcherControllerTests {
 
         harness.controller.searchTextDidChange("zzzz")
         #expect(harness.presenter.model?.tiles.isEmpty == true)
-        #expect(harness.presenter.model?.emptyText == "no matches")
+        #expect(harness.presenter.model?.emptyText == "No matches")
     }
 
     // MARK: - Pointer
@@ -274,8 +274,8 @@ struct SwitcherControllerTests {
         #expect(!harness.controller.isActive)
     }
 
-    @Test("A tile's close lamp closes that tile's window, not the selected one")
-    func controlLampCloses() {
+    @Test("A tile's close control closes that tile's window, not the selected one")
+    func closeControlCloses() {
         let harness = SwitcherHarness()
         harness.pressOptionTab()
         harness.scheduler.fireAll()
@@ -286,8 +286,8 @@ struct SwitcherControllerTests {
         #expect(harness.selectedID == .window(3))
     }
 
-    @Test("A windowless app's quit lamp quits that app, not the selected item's")
-    func quitLampQuitsWindowlessApp() throws {
+    @Test("A windowless app's quit control quits that app, not the selected item's")
+    func quitControlQuitsWindowlessApp() throws {
         let notes = AppInfo(pid: 400, bundleID: "test.notes", name: "Notes")
         let windowless = WindowInfo(id: .windowlessApp(notes.pid), app: notes, title: "", lastFocusOrder: 5)
         let harness = SwitcherHarness(snapshot: SwitcherTestDesktop.snapshot(windows: SwitcherTestDesktop.windows + [windowless]))
